@@ -1,0 +1,34 @@
+# Personal data lives outside this public engine (see README).
+data/
+USER.md
+
+# Memory / DB artifacts
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+
+# Secrets / local env — never commit these
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+credentials.json
+*_history
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node
+node_modules/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

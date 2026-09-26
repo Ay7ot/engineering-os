@@ -1,0 +1,350 @@
+#!/usr/bin/env bash
+# EngineeringOS bootstrap/health CLI (v0.1). Idempotent.
+set -euo pipefail
+
+ENGOS="${ENGINEERING_OS_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+DATA="${ENGINEERING_OS_DATA:-$ENGOS/data}"
+OC_CONFIG="$HOME/.config/opencode"
+PY="$(command -v python3 || true)"
+OC="$(command -v opencode || true)"
+
+log() { printf '[eng] %s\n' "$*"; }
+
+cmd_exists() { command -v "$1" >/dev/null 2>&1; }
+
+check_deps() {
+  log "Checking dependencies..."
+  local missing=0
+  for c in git python3 opencode; do
+    if cmd_exists "$c"; then log "  ok: $c ($(command -v $c))"; else log "  MISSING: $c"; missing=1; fi
+  done
+  [ "$missing" -eq 1 ] && { log "Install missing deps and re-run."; exit 1; }
+  log "  python3 has sqlite3: $("$PY" -c 'import sqlite3,sys; print("yes")' 2>/dev/null || echo no)"
+}
+
+ensure_engos() {
+  log "Ensuring engine at $ENGOS (public, no personal data) ..."
+  for d in mcp/engineering-memory opencode/agents opencode/skills opencode/commands scripts templates; do
+    mkdir -p "$ENGOS/$d"
+  done
+  log "Ensuring data at $DATA (private; version-control this separately) ..."
+  mkdir -p "$DATA"/{projects,knowledge/{architecture,engineering,technologies,patterns},decisions,research,tasks,state,memory}
+  if [ -f "$ENGOS/USER.example.md" ] && [ ! -f "$DATA/USER.md" ]; then
+    cp "$ENGOS/USER.example.md" "$DATA/USER.md"
+    log "  seeded $DATA/USER.md from USER.example.md (edit it)"
+  fi
+  if [ ! -d "$DATA/.git" ]; then log "  hint: 'git init' inside $DATA and push to a PRIVATE repo to back it up"; else log "  data git repo present"; fi
+}
+
+setup_shell_alias() {
+  local rc="$HOME/.zshrc"
+  if [ -f "$HOME/.bashrc" ] && [ ! -f "$rc" ]; then rc="$HOME/.bashrc"; fi
+  if [ -f "$rc" ]; then
+    if grep -q "alias eng=" "$rc" 2>/dev/null; then
+      log "  eng alias already present in $rc (skipped)"
+    else
+      printf '\n# EngineeringOS\nalias eng="%s"\n' "$ENGOS/scripts/eng" >> "$rc"
+      log "  added 'eng' alias to $rc (shell reload needed)"
+    fi
+  fi
+}
+
+link_opencode() {
+  log "Syncing OpenCode config into $OC_CONFIG ..."
+  mkdir -p "$OC_CONFIG"/{agents,skills,commands}
+  # Agents: sync (do not remove user customizations; dedupe by name)
+  for f in "$ENGOS"/opencode/agents/*.md; do
+    [ -e "$f" ] || continue
+    cp "$f" "$OC_CONFIG/agents/$(basename "$f")"
+  done
+  # Commands: sync
+  for f in "$ENGOS"/opencode/commands/*.md; do
+    [ -e "$f" ] || continue
+    cp "$f" "$OC_CONFIG/commands/$(basename "$f")"
+  done
+  # Skills: copy each skill dir
+  for d in "$ENGOS"/opencode/skills/*/; do
+    [ -d "$d" ] || continue
+    cp -R "$d" "$OC_CONFIG/skills/$(basename "$d")"
+  done
+  log "  agents/commands/skills synced"
+}
+
+configure_mcp() {
+  local cfg="$OC_CONFIG/opencode.jsonc"
+  local entry="engineering-memory"
+  local py_abs
+  py_abs="$(command -v python3)"
+  if [ -f "$cfg" ]; then
+    "$PY" - "$cfg" "$entry" "$py_abs" "$ENGOS" "$DATA" <<'PYEOF'
+import json, sys, pathlib
+cfg_path, entry, py, root, data = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
+# Parse with jsonc tolerance: strip // and /* */ comments (outside strings)
+text = pathlib.Path(cfg_path).read_text(encoding="utf-8")
+def strip_comments(s):
+    out, i, n = [], 0, len(s); in_str=False
+    while i < n:
+        c = s[i]
+        if in_str:
+            out.append(c)
+            if c=='\\': i+=2; continue
+            if c=='"': in_str=False
+            i+=1; continue
+        if c=='"': in_str=True; out.append(c); i+=1; continue
+        if c=='/' and i+1<n and s[i+1]=='/':
+            while i<n and s[i]!='\n': i+=1
+            continue
+        if c=='/' and i+1<n and s[i+1]=='*':
+            i+=2
+            while i+1<n and not (s[i]=='*' and s[i+1]=='/'): i+=1
+            i+=2
+            continue
+        out.append(c); i+=1
+    return ''.join(out)
+data_cfg = json.loads(strip_comments(text))
+data_cfg.setdefault("mcp", {})[entry] = {
+    "type": "local",
+    "command": [py, root + "/mcp/engineering-memory/server.py"],
+    "environment": {"ENGINEERING_OS_DATA": data},
+    "timeout": 10000,
+}
+pathlib.Path(cfg_path).write_text(json.dumps(data_cfg, indent=2) + "\n", encoding="utf-8")
+PYEOF
+    log "  configured engineering-memory MCP in opencode.jsonc (data=$DATA)"
+  else
+    cat > "$cfg" <<JSON
+{
+  "\$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "$entry": {
+      "type": "local",
+      "command": ["$py_abs", "$ENGOS/mcp/engineering-memory/server.py"],
+      "environment": { "ENGINEERING_OS_DATA": "$DATA" },
+      "timeout": 10000
+    }
+  }
+}
+JSON
+    log "  created opencode.jsonc with engineering-memory MCP"
+  fi
+}
+
+health_checks() {
+  log "Health checks..."
+  log "  Engine: $ENGOS"
+  log "  Data:   $DATA"
+  log "  MCP server: "
+  if ! printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | ENGINEERING_OS_DATA="$DATA" "$PY" "$ENGOS/mcp/engineering-memory/server.py" >/dev/null 2>&1; then
+    log "    FAIL: engineering-memory MCP did not respond"
+  else
+    log "    ok: engineering-memory MCP responds (tools/list)"
+  fi
+  log "  Memory DB: $([ -f "$DATA/memory/engineering_memory.db" ] && echo present || echo 'missing (auto-creates)')"
+  local ag="" co=""
+  for f in lead researcher explorer architect planner builder reviewer tester security; do
+    [ -f "$OC_CONFIG/agents/$f.md" ] && ag="$ag $f"
+  done
+  log "  Agents synced:$ag"
+  local co2=""
+  for f in init-project feature research debug review; do
+    [ -f "$OC_CONFIG/commands/$f.md" ] && co2="$co2 $f"
+  done
+  log "  Commands synced:$co2"
+  log "  Skills dir: $([ -d "$OC_CONFIG/skills" ] && echo present || echo missing)"
+  if [ -n "$OC" ]; then
+    log "  OpenCode available: $OC"
+  fi
+  log "  Note: restart opencode to load new agents/skills/commands/MCP."
+}
+
+# --- worktree subcommand ---
+wt_usage() { log "usage: eng worktree {new|list|close} ..."; }
+
+wt_slug() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9][^a-z0-9]*/-/g; s/^-//; s/-$//'; }
+
+wt_repo_root() { # $1 path -> absolute repo toplevel (validates it is a git repo)
+  git -C "${1:-$PWD}" rev-parse --show-toplevel 2>/dev/null || { log "not a git repo: ${1:-$PWD}" >&2; return 1; }
+}
+
+detect_base() { # $1 repo root, $2 optional explicit base -> prints branch
+  local root="$1" base="${2:-}"
+  [ -n "$base" ] && { printf '%s' "$base"; return 0; }
+  local head
+  head="$(git -C "$root" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  [ -n "$head" ] && { printf '%s' "${head#origin/}"; return 0; }
+  local c
+  for c in main dev master develop trunk; do
+    if git -C "$root" rev-parse --verify --quiet "refs/heads/$c" >/dev/null 2>&1; then printf '%s' "$c"; return 0; fi
+    if git -C "$root" rev-parse --verify --quiet "refs/remotes/origin/$c" >/dev/null 2>&1; then printf 'origin/%s' "$c"; return 0; fi
+  done
+  return 1
+}
+
+wt_upsert() { # $1 project, $2 name, $3 type, $4 branch, $5 path, $6 base, $7 status
+  local project="$1" name="$2" type="$3" branch="$4" path="$5" base="$6" status="$7"
+  local dir="$DATA/projects/$project"
+  local f="$dir/worktrees.md"
+  mkdir -p "$dir"
+  if [ ! -f "$f" ]; then
+    printf '# Worktrees — %s\n\n| name | type | branch | path | base | status | created |\n|---|---|---|---|---|---|---|\n' "$project" > "$f"
+  fi
+  if grep -q "^| $name |" "$f"; then
+    awk -v n=" $name " -v s=" $status " 'BEGIN{FS=OFS="|"} $2==n {$7=s} {print}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+  else
+    printf '| %s | %s | %s | %s | %s | %s | %s |\n' "$name" "$type" "$branch" "$path" "$base" "$status" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$f"
+  fi
+  log "registry: $f"
+}
+
+wt_set_status() { # $1 project $2 name $3 status
+  local f="$DATA/projects/$1/worktrees.md"
+  [ -f "$f" ] || return 1
+  awk -v n=" $2 " -v s=" $3 " 'BEGIN{FS=OFS="|"} $2==n {$7=s} {print}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+}
+
+wt_new() { # eng worktree new <name> [--repo <path>] [--type feat|fix|chore] [--base <branch>] [--branch <override>] [--project <name>]
+  local name="" repo="$PWD" type="feat" base="" branch="" project=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --repo) repo="${2:?--repo needs a value}"; shift 2 ;;
+      --type) type="${2:?--type needs a value}"; shift 2 ;;
+      --base) base="${2:?--base needs a value}"; shift 2 ;;
+      --branch) branch="${2:?--branch needs a value}"; shift 2 ;;
+      --project) project="${2:?--project needs a value}"; shift 2 ;;
+      -*) log "unknown option: $1"; wt_usage; return 1 ;;
+      *) [ -z "$name" ] && name="$1" || { log "unexpected argument: $1"; wt_usage; return 1; }; shift ;;
+    esac
+  done
+  [ -z "$name" ] && { log "name required"; wt_usage; return 1; }
+  case "$type" in feat|fix|chore) ;; *) log "invalid type: $type (use feat|fix|chore)"; return 1 ;; esac
+  local root slug b wtpath
+  root="$(wt_repo_root "$repo")" || return 1
+  slug="$(wt_slug "$name")"
+  [ -z "$slug" ] && { log "invalid name (slug empty): $name"; return 1; }
+  branch="${branch:-$type/$slug}"
+  if git -C "$root" rev-parse --verify --quiet "refs/heads/$branch" >/dev/null 2>&1; then
+    log "branch already exists: $branch (use --branch override)"
+    return 1
+  fi
+  b="$(detect_base "$root" "$base")" || { log "could not detect base branch; pass --base <branch>"; return 1; }
+  wtpath="$(dirname "$root")/$(basename "$root")-$slug-wt"
+  if git -C "$root" worktree list --porcelain 2>/dev/null | grep -q "^worktree $wtpath$"; then
+    local existing_branch
+    existing_branch="$(git -C "$root" worktree list --porcelain 2>/dev/null | grep -A2 "^worktree $wtpath$" | grep '^branch ' | sed 's/^branch refs\/heads\///' | head -1)"
+    if [ -n "$existing_branch" ] && [ "$existing_branch" != "$branch" ]; then
+      log "worktree path already exists for branch $existing_branch: $wtpath"
+      log "refusing to reuse it for $branch — pick a different name or --branch"
+      return 1
+    fi
+    log "worktree already exists: $wtpath (skipping)"
+  else
+    git -C "$root" worktree add -b "$branch" "$wtpath" "$b" || return 1
+  fi
+  project="${project:-$(wt_slug "$(basename "$root")")}"
+  wt_upsert "$project" "$slug" "$type" "$branch" "$wtpath" "$b" "active"
+  log "project: $project"
+  log "branch: $branch"
+  log "path: $wtpath"
+  log "base: $b"
+}
+
+wt_list() { # eng worktree list [--repo <path>] [--project <name>]
+  local repo="$PWD" project=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --repo) repo="${2:?--repo needs a value}"; shift 2 ;;
+      --project) project="${2:?--project needs a value}"; shift 2 ;;
+      -*) log "unknown option: $1"; wt_usage; return 1 ;;
+      *) log "unexpected argument: $1"; wt_usage; return 1 ;;
+    esac
+  done
+  local root
+  root="$(wt_repo_root "$repo")" || return 1
+  project="${project:-$(wt_slug "$(basename "$root")")}"
+  local f="$DATA/projects/$project/worktrees.md"
+  if [ -f "$f" ]; then
+    log "registry: $f"
+    cat "$f"
+  else
+    log "no registry yet for $project"
+  fi
+  log "git worktree list:"
+  git -C "$root" worktree list
+}
+
+wt_close() { # eng worktree close <name|branch> [--repo <path>] [--project <name>] [--force] [--delete-branch]
+  local name="" repo="$PWD" project="" force=0 delete_branch=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --repo) repo="${2:?--repo needs a value}"; shift 2 ;;
+      --project) project="${2:?--project needs a value}"; shift 2 ;;
+      --force) force=1; shift ;;
+      --delete-branch) delete_branch=1; shift ;;
+      -*) log "unknown option: $1"; wt_usage; return 1 ;;
+      *) [ -z "$name" ] && name="$1" || { log "unexpected argument: $1"; wt_usage; return 1; }; shift ;;
+    esac
+  done
+  [ -z "$name" ] && { log "name required"; wt_usage; return 1; }
+  local root
+  root="$(wt_repo_root "$repo")" || return 1
+  project="${project:-$(wt_slug "$(basename "$root")")}"
+  local f="$DATA/projects/$project/worktrees.md"
+  local wtpath="" branch="" type="" base=""
+  if [ -f "$f" ]; then
+    local row
+    row="$(awk -v n=" $name " 'BEGIN{FS="|"} $2==n {print}' "$f" | head -1)"
+    if [ -n "$row" ]; then
+      wtpath="$(printf '%s\n' "$row" | awk -F'|' '{gsub(/^ +| +$/, "", $5); print $5}')"
+      branch="$(printf '%s\n' "$row" | awk -F'|' '{gsub(/^ +| +$/, "", $4); print $4}')"
+      type="$(printf '%s\n' "$row" | awk -F'|' '{gsub(/^ +| +$/, "", $3); print $3}')"
+      base="$(printf '%s\n' "$row" | awk -F'|' '{gsub(/^ +| +$/, "", $6); print $6}')"
+    fi
+  fi
+  if [ -z "$wtpath" ]; then
+    wtpath="$(git -C "$root" worktree list --porcelain 2>/dev/null | grep -B2 "branch refs/heads/$name" | grep "^worktree " | sed 's/^worktree //' | head -1 || true)"
+    branch="$name"
+  fi
+  [ -z "$wtpath" ] && { log "no worktree found for '$name'"; return 1; }
+  if [ "$force" -eq 0 ] && [ -n "$(git -C "$wtpath" status --porcelain 2>/dev/null)" ]; then
+    log "worktree has uncommitted changes; commit or stash first, or pass --force"
+    return 1
+  fi
+  if [ "$force" -eq 1 ]; then
+    git -C "$root" worktree remove --force "$wtpath" || return 1
+  else
+    git -C "$root" worktree remove "$wtpath" || return 1
+  fi
+  if [ "$delete_branch" -eq 1 ] && [ -n "$branch" ]; then
+    if ! git -C "$root" branch -d "$branch" 2>/dev/null; then
+      if [ "$force" -eq 1 ]; then
+        git -C "$root" branch -D "$branch" || true
+      else
+        log "branch $branch not fully merged — left in place (use --force)"
+      fi
+    fi
+  fi
+  if [ -n "$type" ]; then
+    wt_set_status "$project" "$name" "closed"
+  fi
+  log "closed $name: $wtpath"
+}
+
+wt_main() { # dispatcher
+  local cmd="${1:-}"
+  [ -z "$cmd" ] && { wt_usage; return 1; }
+  shift
+  case "$cmd" in
+    new) wt_new "$@" ;;
+    list) wt_list "$@" ;;
+    close) wt_close "$@" ;;
+    *) wt_usage; return 1 ;;
+  esac
+}
+
+case "${1:-health}" in
+  setup) check_deps; ensure_engos; link_opencode; configure_mcp; setup_shell_alias; health_checks ;;
+  health) health_checks ;;
+  sync-opencode) link_opencode; configure_mcp ;;
+  worktree) shift; wt_main "$@";;
+  *) echo "usage: eng {setup|health|sync-opencode|worktree}" ;;
+esac
