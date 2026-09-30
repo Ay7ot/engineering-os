@@ -6,7 +6,7 @@ description: >-
   plans, coordinates implementation, triggers verification/review, and returns
   a concise final report. Does not delegate trivial tasks.
 mode: primary
-model: opencode-go/deepseek-v4-flash
+model: opencode/deepseek-v4.1-flash
 permission:
   read: allow
   edit: allow

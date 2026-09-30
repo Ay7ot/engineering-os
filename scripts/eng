@@ -108,6 +108,8 @@ data_cfg.setdefault("mcp", {})[entry] = {
     "environment": {"ENGINEERING_OS_DATA": data},
     "timeout": 10000,
 }
+# Make the EngineeringOS Lead agent the default primary agent (do not clobber a user choice).
+data_cfg.setdefault("default_agent", "lead")
 pathlib.Path(cfg_path).write_text(json.dumps(data_cfg, indent=2) + "\n", encoding="utf-8")
 PYEOF
     log "  configured engineering-memory MCP in opencode.jsonc (data=$DATA)"
@@ -115,6 +117,7 @@ PYEOF
     cat > "$cfg" <<JSON
 {
   "\$schema": "https://opencode.ai/config.json",
+  "default_agent": "lead",
   "mcp": {
     "$entry": {
       "type": "local",
@@ -145,6 +148,9 @@ health_checks() {
     [ -f "$OC_CONFIG/agents/$f.md" ] && ag="$ag $f"
   done
   log "  Agents synced:$ag"
+  local def_agent
+  def_agent="$(grep -o '"default_agent"[[:space:]]*:[[:space:]]*"[^"]*"' "$OC_CONFIG/opencode.jsonc" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')"
+  log "  Default agent: ${def_agent:-(unset)}"
   local co2=""
   for f in init-project feature research debug review; do
     [ -f "$OC_CONFIG/commands/$f.md" ] && co2="$co2 $f"
