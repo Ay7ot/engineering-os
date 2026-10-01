@@ -17,6 +17,7 @@ metadata:
 - README: what it is, quickstart, dev setup, how to run tests, where to find more.
 - AGENTS.md: project overview, stack, architecture, conventions, build/test/lint commands, entry points, and how to use EngineeringOS memory tools. Concise; agents read it every session.
 - Use links over duplication (single source of truth).
+- Use Mermaid diagrams (in ```mermaid fences) to show structure, flows, and state where prose is slow to parse; keep the diagram source in the doc so it stays diffable and reviewable. See the `diagrams` skill.
 - Dates and owners on operational docs; review periodically.
 - Prefer concrete examples over vague instructions.
 

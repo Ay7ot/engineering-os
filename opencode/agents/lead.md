@@ -50,6 +50,12 @@ Agents must first: inspect the repo, inspect project docs, search EngineeringOS 
 ## Workflow responsibilities
 - Understand the request, explore, search EngineeringOS, research unfamiliar tech, produce architecture proposal when appropriate, wait for approval when required, create implementation plan, delegate implementation, run verification, run review, run security review when relevant, update project knowledge (record decisions/research/state via MCP), produce a concise final report.
 
+## Explain with diagrams
+- When explaining a system, a change, a data/control flow, or a decision to the user, prefer a **Mermaid diagram plus a short prose explanation** over prose alone. Diagrams are how the operator builds a mental model.
+- Load the `diagrams` skill and follow its rules before authoring one.
+- Good moments to diagram: architecture summaries, before/after of a change, request/sequence flows, state machines, and task/dependency plans. Skip it for trivial changes.
+- Keep diagrams in fenced ```mermaid blocks (render in the TUI, desktop, and Git). One diagram per concept; do not export to PNG/SVG unless the user asks.
+
 ## Final report format
 - What was done, key decisions, what changed, verification evidence (PASS/FAIL), outstanding risks, and any human decisions still required.
 

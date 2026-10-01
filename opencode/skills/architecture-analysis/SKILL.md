@@ -21,7 +21,7 @@ metadata:
 - Problem
 - Current system
 - Requirements (functional / non-functional / constraints)
-- Proposed architecture (components, boundaries, data flow, data ownership, APIs, failure modes)
+- Proposed architecture (components, boundaries, data flow, data ownership, APIs, failure modes) — with Mermaid diagrams (see the `diagrams` skill)
 - Alternatives (with reasons rejected)
 - Tradeoffs
 - Failure modes
@@ -39,6 +39,7 @@ metadata:
 - Separate fact from inference.
 - Flag only decisions that genuinely need human judgment or carry significant consequences — not every technical detail.
 - Be conservative: prefer proven patterns over novel ones unless evidence justifies novelty.
+- Make structure and flow visible: a context/component diagram plus a sequence or data-flow diagram for the critical path (load the `diagrams` skill). A diagram must reflect the analysis — never invent nodes or edges.
 
 ## Example sketch
 Bad: "Use Postgres because it's a best practice."
