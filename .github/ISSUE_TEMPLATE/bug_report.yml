@@ -1,0 +1,51 @@
+name: Bug report
+description: Something is broken in the EngineeringOS engine.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please do **not** paste secrets, tokens, or personal data.
+        The engine is public; your `data/` directory is private and must never be shared here.
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Output of `git -C ~/EngineeringOS rev-parse --short HEAD`, or the release tag.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, `python3 --version`, `bash --version`, OpenCode version.
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Include the exact command and the full output.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `eng setup`
+        2. Run `eng worktree new demo`
+        3. See error ...
+    validations:
+      required: true
+  - type: textarea
+    id: health
+    attributes:
+      label: `eng health` output (optional)
+      render: shell

@@ -19,8 +19,11 @@ are interchangeable execution surfaces; EngineeringOS is the system of record.
 | Skills | `opencode/skills/*/SKILL.md` | Reusable task playbooks |
 | Commands | `opencode/commands/*.md` | Slash-command workflows |
 | Memory MCP server | `mcp/engineering-memory/server.py` | Exposes data + SQLite/FTS5 over MCP stdio |
-| CLI | `scripts/eng` | Idempotent setup, health, OpenCode sync, git worktrees |
+| CLI | `scripts/eng` | Idempotent setup, health, OpenCode sync, git worktrees, repo protection |
+| Tests | `tests/` | Hermetic CLI, MCP, and ruleset tests; run by CI |
 | Templates | `templates/` | Seed files for a new data directory |
+| CI | `.github/workflows/ci.yml` | Syntax checks, tests, ruleset guard |
+| Branch protection | `.github/ruleset.json` | Source of truth for the `main` ruleset |
 
 ## Data model
 
@@ -70,3 +73,15 @@ coupling point; `eng setup` wires it into the MCP config.
 - Privileged operations (prod deploy, destructive migrations, irreversible data
   ops) require explicit human approval.
 - The data repo is expected to be private; treat it as sensitive by default.
+
+## Repository governance
+
+`main` is protected by a repository ruleset defined in `.github/ruleset.json`
+and applied with `eng repo-protect`. Contributors cannot push to `main`; they
+open a PR that must pass CI (`tests/`). A single admin bypass actor keeps the
+solo maintainer unblocked. See `CONTRIBUTING.md` and ADR
+`docs/decisions/2026-10-02-open-source-contributor-workflow-and-branch-protection.md`.
+
+CI (`.github/workflows/ci.yml`) runs the same tests a contributor can run
+locally: `tests/test_eng.sh`, `tests/test_mcp.sh`, `tests/test_ruleset.py`, plus
+syntax checks. The job is named `ci` and is the required status check.

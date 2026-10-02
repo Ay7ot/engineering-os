@@ -149,10 +149,10 @@ health_checks() {
   done
   log "  Agents synced:$ag"
   local def_agent
-  def_agent="$(grep -o '"default_agent"[[:space:]]*:[[:space:]]*"[^"]*"' "$OC_CONFIG/opencode.jsonc" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')"
+  def_agent="$(grep -o '"default_agent"[[:space:]]*:[[:space:]]*"[^"]*"' "$OC_CONFIG/opencode.jsonc" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || true)"
   log "  Default agent: ${def_agent:-(unset)}"
   local co2=""
-  for f in init-project feature research debug review; do
+  for f in init-project feature research debug review worktree; do
     [ -f "$OC_CONFIG/commands/$f.md" ] && co2="$co2 $f"
   done
   log "  Commands synced:$co2"
@@ -347,10 +347,144 @@ wt_main() { # dispatcher
   esac
 }
 
+# --- repo-protect subcommand ---
+# Applies .github/ruleset.json to the GitHub repo via the `gh` CLI. Idempotent:
+# a ruleset with the same name is updated in place, never duplicated.
+rp_usage() {
+  cat <<'USAGE'
+usage: eng repo-protect [--check] [--repo <owner/name>] [--file <path>]
+
+  Applies the branch-protection ruleset to GitHub. The ruleset source of truth
+  is .github/ruleset.json in this repo.
+
+  --check   Only report whether GitHub matches the file. Changes nothing.
+  --repo    Target repo as owner/name (default: the origin remote of $ENGOS).
+  --file    Ruleset JSON path (default: $ENGOS/.github/ruleset.json).
+
+  Requires `gh` installed and authenticated with admin rights on the repo.
+USAGE
+}
+
+rp_repo_from_origin() {
+  git -C "$ENGOS" config --get remote.origin.url 2>/dev/null | sed -E 's#(git@github.com:|https://github.com/)##; s#\.git$##'
+}
+
+rp_main() {
+  local check=0 repo="" file=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --check) check=1; shift ;;
+      --repo) repo="${2:?--repo needs owner/name}"; shift 2 ;;
+      --file) file="${2:?--file needs a path}"; shift 2 ;;
+      -h|--help) rp_usage; return 0 ;;
+      *) log "unknown option: $1"; rp_usage; return 1 ;;
+    esac
+  done
+  file="${file:-$ENGOS/.github/ruleset.json}"
+  [ -f "$file" ] || { log "ruleset file not found: $file"; return 1; }
+  if ! cmd_exists gh; then
+    log "gh (GitHub CLI) not found. Install it and run 'gh auth login' (needs admin on the repo)."
+    return 1
+  fi
+  [ -n "$repo" ] || repo="$(rp_repo_from_origin || true)"
+  # Accept only owner/name; reject anything else (bad remote, injected path, etc.).
+  case "$repo" in
+    *[!A-Za-z0-9_.\/-]*|*/*/*|*/|/*|"") repo="" ;;
+  esac
+  [ -n "$repo" ] || { log "could not determine a valid owner/name repo; pass --repo <owner/name>"; return 1; }
+  log "ruleset file: $file"
+  log "target repo:  $repo"
+
+  if [ "$check" -eq 1 ]; then
+    python3 - "$file" "$repo" <<'PYEOF'
+import json, subprocess, sys
+file, repo = sys.argv[1], sys.argv[2]
+want = json.load(open(file, encoding="utf-8"))
+raw = subprocess.run(["gh", "api", f"repos/{repo}/rulesets"], capture_output=True, text=True)
+if raw.returncode != 0:
+    print(f"  cannot read rulesets: {raw.stderr.strip()}")
+    sys.exit(1)
+existing = json.loads(raw.stdout or "[]")
+match = next((r for r in existing if r.get("name") == want.get("name")), None)
+if match is None:
+    print(f"  DRIFT: no ruleset named '{want['name']}' on {repo}")
+    sys.exit(1)
+detail = subprocess.run(["gh", "api", f"repos/{repo}/rulesets/{match['id']}"], capture_output=True, text=True)
+cur = json.loads(detail.stdout) if detail.returncode == 0 else {}
+
+def project(value, template):
+    """Keep only the structure the desired file declares, so GitHub's extra
+    read-only fields (e.g. integration_id, echoed defaults) do not read as drift."""
+    if isinstance(template, dict):
+        if not isinstance(value, dict):
+            return value
+        return {k: project(value.get(k), v) for k, v in template.items()}
+    if isinstance(template, list):
+        if not isinstance(value, list):
+            return value
+        # Rules are matched by 'type' where present, else by position.
+        if template and all(isinstance(t, dict) and "type" in t for t in template):
+            by_type = {r.get("type"): r for r in value if isinstance(r, dict)}
+            return [project(by_type.get(t.get("type")), t) for t in template]
+        return [project(value[i] if i < len(value) else None, t) for i, t in enumerate(template)]
+    return value
+
+def norm_bypass(actors):
+    return sorted(
+        f"{a.get('actor_type')}:{a.get('actor_id')}:{a.get('bypass_mode')}" for a in actors
+    )
+
+diffs = []
+if project(cur.get("rules", []), want.get("rules", [])) != want.get("rules", []):
+    diffs.append("rules differ")
+if norm_bypass(cur.get("bypass_actors", [])) != norm_bypass(want.get("bypass_actors", [])):
+    diffs.append("bypass_actors differ")
+if cur.get("enforcement") != want.get("enforcement"):
+    diffs.append(f"enforcement: {cur.get('enforcement')} != {want.get('enforcement')}")
+want_ref = want.get("conditions", {}).get("ref_name", {}).get("include", [])
+cur_ref = cur.get("conditions", {}).get("ref_name", {}).get("include", [])
+if sorted(want_ref) != sorted(cur_ref):
+    diffs.append(f"ref_name.include: {cur_ref} != {want_ref}")
+if diffs:
+    print("  DRIFT: " + "; ".join(diffs))
+    sys.exit(1)
+print(f"  IN SYNC: ruleset '{want['name']}' matches {file}")
+PYEOF
+    return $?
+  fi
+
+  python3 - "$file" "$repo" <<'PYEOF'
+import json, subprocess, sys, tempfile, os
+file, repo = sys.argv[1], sys.argv[2]
+want = json.load(open(file, encoding="utf-8"))
+name = want.get("name")
+raw = subprocess.run(["gh", "api", f"repos/{repo}/rulesets"], capture_output=True, text=True)
+if raw.returncode != 0:
+    print(f"  cannot read rulesets: {raw.stderr.strip()}")
+    sys.exit(1)
+existing = json.loads(raw.stdout or "[]")
+match = next((r for r in existing if r.get("name") == name), None)
+method = ["-X", "PUT", f"repos/{repo}/rulesets/{match['id']}"] if match else ["-X", "POST", f"repos/{repo}/rulesets"]
+action = "updated" if match else "created"
+fd, tmp = tempfile.mkstemp(suffix=".json")
+with os.fdopen(fd, "w", encoding="utf-8") as fh:
+    json.dump(want, fh)
+try:
+    res = subprocess.run(["gh", "api", *method, "--input", tmp], capture_output=True, text=True)
+finally:
+    os.unlink(tmp)
+if res.returncode != 0:
+    print(f"  FAIL: {res.stderr.strip()}")
+    sys.exit(1)
+print(f"  OK: ruleset '{name}' {action} on {repo}")
+PYEOF
+}
+
 case "${1:-health}" in
   setup) check_deps; ensure_engos; link_opencode; configure_mcp; setup_shell_alias; health_checks ;;
   health) health_checks ;;
   sync-opencode) link_opencode; configure_mcp ;;
   worktree) shift; wt_main "$@";;
-  *) echo "usage: eng {setup|health|sync-opencode|worktree}" ;;
+  repo-protect) shift; rp_main "$@";;
+  *) echo "usage: eng {setup|health|sync-opencode|worktree|repo-protect}" ;;
 esac
