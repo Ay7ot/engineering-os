@@ -307,17 +307,21 @@ data repo private by default.
 
 ## Branch protection and contributing
 
-`main` is protected: no direct pushes from contributors, no force-push, no
-deletion, and CI must pass. The policy lives in
-[`.github/ruleset.json`](.github/ruleset.json) so it is readable and reviewable
-like any other change.
+`main` is protected: contributors can only land changes through a pull request
+that passes CI **and** is approved by a reviewer with write access. The only
+account with write access is the maintainer, so the maintainer reviews every
+contribution before it merges. No force-push, no deletion, and CI must pass. The
+policy lives in [`.github/ruleset.json`](.github/ruleset.json) so it is readable
+and reviewable like any other change.
 
 ```mermaid
 flowchart LR
-    C[Contributor] -->|branch + PR| PR[Pull Request]
+    C[Contributor] -->|fork + PR| PR[Pull Request]
     PR --> CI["CI: syntax checks, tests, ruleset guard"]
-    CI -->|green| M[main]
+    CI -->|green| RV["Maintainer review<br/>(1 approval required)"]
+    RV -->|approved| M[main]
     CI -->|red| X[blocked]
+    RV -->|changes or no review| X
     A[Maintainer / admin] -.->|bypass| M
 ```
 
@@ -330,6 +334,9 @@ git commit -m "feat(scope): short description"
 git push -u origin feat/short-description
 gh pr create --fill
 ```
+
+A maintainer reviews and approves. On approval, any new push dismisses the
+approval, so what is reviewed is exactly what merges. Then it is squash-merged.
 
 CI runs `bash -n scripts/eng`, `python3 -m py_compile`, `tests/test_eng.sh`,
 `tests/test_mcp.sh`, and `tests/test_ruleset.py`. Run the same tests locally

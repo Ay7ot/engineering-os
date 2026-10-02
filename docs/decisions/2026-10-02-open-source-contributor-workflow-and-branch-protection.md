@@ -27,31 +27,44 @@ Protect `main` with a repository ruleset, and define it as data:
 2. **`.github/ruleset.json`** is the source of truth for the ruleset. It is read
    and applied by `eng repo-protect`, and it is guarded by
    `tests/test_ruleset.py` so a bad edit fails CI.
-3. **Rules on `main`:** pull request required, **0 required approvals**,
+3. **Rules on `main`:** pull request required, **1 required approval**,
    required status check `ci` (pinned to the GitHub Actions app via
    `integration_id`, branch must be up to date), review threads must be
-   resolved, linear history, no force-push, no deletion.
+   resolved, approval dismissed on new commits, most-recent-push approval
+   required, linear history, no force-push, no deletion.
 4. **Bypass:** a single actor, the repository admin role (`RepositoryRole`,
    id 5), with `bypass_mode: "always"`.
 
 The resulting policy: contributors can only land on `main` through a PR that
-passes CI; the maintainer retains direct push.
+passes CI **and** is approved by a reviewer with write access; the maintainer
+retains direct push and is the only account with write access to the repo.
 
 ## Why these choices
 
-- **0 approvals, not 1.** GitHub bypass modes cannot express "everyone else must
-  get an approval, but I can push directly". `always` skips every rule for the
-  admin, including the review count, so requiring 1 approval would not actually
-  bind the maintainer and would block contributors until a second reviewer
-  exists (there is currently one maintainer). Zero approvals is the honest
-  setting; the review culture is stated in `CONTRIBUTING.md` and can be raised
-  the day a second maintainer appears.
+- **1 required approval, and `always` bypass for the admin.** The docs are
+  explicit that with required reviews, "collaborators can only push changes to a
+  branch via a pull request that is approved by the required number of reviewers
+  **with write permissions**". On this user-owned repo the only account with
+  write access is the admin, so requiring 1 approval means **only the admin can
+  approve a contributor's PR, and therefore only the admin can unblock a
+  merge.** Contributors submit fork PRs and cannot merge them. `always` lets the
+  admin push directly and merge their own work without self-approving, while
+  still binding every contributor to the review gate.
+  - Alternative considered: `bypass_mode: "pull_request"` with 1 approval. That
+    forces the admin through a PR for every change and blocks default-branch
+    renames, for no additional control here, because the admin is already the
+    only writer.
+  - The admin role (not a specific user) is the bypass actor. Today the admin is
+    the sole collaborator. If another admin is added later, switch the bypass to
+    a specific `User` actor to keep the bypass personal.
   - GitHub's API *requires* all five review-related keys on the `pull_request`
     rule: `required_approving_review_count`, `dismiss_stale_reviews_on_push`,
     `require_last_push_approval`, `require_code_owner_review`, and
-    `required_review_thread_resolution`. With 0 approvals the review-dependent
-    ones are set to `false` (there is nothing to dismiss or re-approve).
-    `tests/test_ruleset.py` asserts both their presence and their values.
+    `required_review_thread_resolution`. All five are present; `tests/test_ruleset.py`
+    asserts their presence and values.
+  - `dismiss_stale_reviews_on_push` and `require_last_push_approval` are `true`:
+    once approved, a contributor cannot slip in new unreviewed commits before
+    merge.
 - **`always`, not `pull_request`.** With `always` the admin can also
   rename/change the default branch, which is otherwise blocked by the ruleset.
   `pull_request` would force even the maintainer through a PR and would break

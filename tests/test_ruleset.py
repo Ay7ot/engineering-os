@@ -65,8 +65,8 @@ def main():
         {},
     ).get("parameters", {})
     check(
-        pr.get("required_approving_review_count", None) == 0,
-        "required approvals is 0 (solo maintainer model)",
+        pr.get("required_approving_review_count") == 1,
+        "required approvals is 1 (only a write-access reviewer, i.e. the admin, can approve)",
     )
     check(
         pr.get("required_review_thread_resolution") is True,
@@ -77,7 +77,6 @@ def main():
         "only squash and rebase merges are allowed",
     )
     # The GitHub API requires these five keys on the pull_request rule.
-    # With 0 required approvals, the review-dependent ones must be false.
     for key in (
         "dismiss_stale_reviews_on_push",
         "require_last_push_approval",
@@ -87,12 +86,12 @@ def main():
     ):
         check(key in pr, f"pull_request parameter present: {key}")
     check(
-        pr.get("dismiss_stale_reviews_on_push") is False,
-        "dismiss_stale_reviews_on_push is false (0 approvals)",
+        pr.get("dismiss_stale_reviews_on_push") is True,
+        "dismiss_stale_reviews_on_push is true (approval dies on new commits)",
     )
     check(
-        pr.get("require_last_push_approval") is False,
-        "require_last_push_approval is false (0 approvals)",
+        pr.get("require_last_push_approval") is True,
+        "require_last_push_approval is true (no unreviewed commits after approval)",
     )
 
     sc = next(

@@ -43,8 +43,10 @@ git push -u origin feat/short-description
 gh pr create --fill
 ```
 
-A maintainer reviews, CI must be green, and then it is squash-merged. Keep pull
-requests small and scoped: one idea per PR.
+A maintainer reviews, CI must be green, and then it is squash-merged. The
+maintainer's approval is required before a contribution can merge, and any push
+after approval dismisses it. Keep pull requests small and scoped: one idea per
+PR.
 
 ### Commit messages
 
