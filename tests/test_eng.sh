@@ -124,7 +124,7 @@ case "$mode" in
       repos/x/y/rulesets) echo '[{"id":1,"name":"protect-main"}]' ;;
       repos/x/y/rulesets/1)
         # Same policy the file declares, plus an extra field GitHub adds.
-        echo '{"name":"protect-main","enforcement":"active","conditions":{"ref_name":{"include":["~DEFAULT_BRANCH"],"exclude":[]}},"bypass_actors":[{"actor_type":"RepositoryRole","actor_id":5,"bypass_mode":"always"}],"rules":[{"type":"deletion"},{"type":"non_fast_forward"},{"type":"required_linear_history"},{"type":"pull_request","parameters":{"required_approving_review_count":0,"require_code_owner_review":false,"required_review_thread_resolution":true,"allowed_merge_methods":["squash","rebase"],"extra_github_field":true}},{"type":"required_status_checks","parameters":{"strict_required_status_checks_policy":true,"do_not_enforce_on_create":true,"required_status_checks":[{"context":"ci","integration_id":15368}]}}]}' ;;
+        echo '{"name":"protect-main","enforcement":"active","conditions":{"ref_name":{"include":["~DEFAULT_BRANCH"],"exclude":[]}},"bypass_actors":[{"actor_type":"RepositoryRole","actor_id":5,"bypass_mode":"always"}],"rules":[{"type":"deletion"},{"type":"non_fast_forward"},{"type":"required_linear_history"},{"type":"pull_request","parameters":{"required_approving_review_count":0,"dismiss_stale_reviews_on_push":false,"require_last_push_approval":false,"require_code_owner_review":false,"required_review_thread_resolution":true,"allowed_merge_methods":["squash","rebase"],"extra_github_field":true}},{"type":"required_status_checks","parameters":{"strict_required_status_checks_policy":true,"do_not_enforce_on_create":true,"required_status_checks":[{"context":"ci","integration_id":15368}]}}]}' ;;
       *) echo '{}' ;;
     esac
     ;;

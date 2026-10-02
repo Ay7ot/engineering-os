@@ -76,15 +76,23 @@ def main():
         sorted(pr.get("allowed_merge_methods", [])) == ["rebase", "squash"],
         "only squash and rebase merges are allowed",
     )
-    # These settings imply required reviewers; with 0 approvals they are
-    # contradictory and must not be present.
+    # The GitHub API requires these five keys on the pull_request rule.
+    # With 0 required approvals, the review-dependent ones must be false.
+    for key in (
+        "dismiss_stale_reviews_on_push",
+        "require_last_push_approval",
+        "require_code_owner_review",
+        "required_review_thread_resolution",
+        "required_approving_review_count",
+    ):
+        check(key in pr, f"pull_request parameter present: {key}")
     check(
-        "require_last_push_approval" not in pr,
-        "no require_last_push_approval while approvals is 0",
+        pr.get("dismiss_stale_reviews_on_push") is False,
+        "dismiss_stale_reviews_on_push is false (0 approvals)",
     )
     check(
-        "dismiss_stale_reviews_on_push" not in pr,
-        "no dismiss_stale_reviews_on_push while approvals is 0",
+        pr.get("require_last_push_approval") is False,
+        "require_last_push_approval is false (0 approvals)",
     )
 
     sc = next(

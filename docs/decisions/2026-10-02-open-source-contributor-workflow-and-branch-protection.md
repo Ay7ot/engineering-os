@@ -46,11 +46,12 @@ passes CI; the maintainer retains direct push.
   exists (there is currently one maintainer). Zero approvals is the honest
   setting; the review culture is stated in `CONTRIBUTING.md` and can be raised
   the day a second maintainer appears.
-  - Two settings that imply required reviewers, `dismiss_stale_reviews_on_push`
-    and `require_last_push_approval`, are therefore left **out** while approvals
-    is 0. Including `require_last_push_approval` with 0 approvals is
-    self-contradictory and can be rejected on apply. `tests/test_ruleset.py`
-    asserts they are absent.
+  - GitHub's API *requires* all five review-related keys on the `pull_request`
+    rule: `required_approving_review_count`, `dismiss_stale_reviews_on_push`,
+    `require_last_push_approval`, `require_code_owner_review`, and
+    `required_review_thread_resolution`. With 0 approvals the review-dependent
+    ones are set to `false` (there is nothing to dismiss or re-approve).
+    `tests/test_ruleset.py` asserts both their presence and their values.
 - **`always`, not `pull_request`.** With `always` the admin can also
   rename/change the default branch, which is otherwise blocked by the ruleset.
   `pull_request` would force even the maintainer through a PR and would break
