@@ -29,8 +29,10 @@ bash tests/test_claude_sync.sh
 bash tests/test_mcp.sh
 ```
 
-Those two scripts are the bulk of what CI runs. CI also runs syntax checks and
-`python3 tests/test_ruleset.py`. If they pass locally, CI should pass.
+Those four suites are the bulk of what CI runs. CI also runs syntax checks and
+`python3 tests/test_ruleset.py`. If they pass locally, CI should pass. All tests
+are hermetic: they use a temporary `HOME` and never touch your real editor
+config.
 
 ## Branching and pull requests
 
@@ -63,7 +65,7 @@ The `ci` workflow runs on every push and PR:
 | Step | Command |
 |---|---|
 | Bash syntax | `bash -n scripts/eng` |
-| Python syntax | `python3 -m py_compile mcp/engineering-memory/server.py` |
+| Python syntax | `python3 -m py_compile` on the MCP server, `scripts/eos_sync.py`, and every adapter (see `ci.yml`) |
 | CLI tests | `bash tests/test_eng.sh` |
 | Adapter tests | `python3 tests/test_adapters.py` |
 | Claude Code adapter tests | `bash tests/test_claude_sync.sh` |
@@ -82,8 +84,11 @@ only (no lists); the loader rejects anything else with `file:line`.
   `role` (`primary` or `subagent`), optional `model_tier` (`deep`, `standard`,
   `fast`), a `permissions` map, and editor-only settings under
   `targets.<editor>` (e.g. `targets.opencode.temperature`). Keep read-only
-  agents read-only: deny `edit`, and deny `bash` except the few read-only git
-  commands they need. Do not give an agent a tool its job does not require.
+  agents read-only: deny `edit`, and deny `bash` except an explicit list of
+  read-only commands, with the `"*"` default first and no git wildcards. Do not
+  give an agent a tool its job does not require. If you change an agent's
+  permissions, update the golden fixtures in `tests/fixtures/opencode-v1/` in
+  the same PR so the change is visible in review.
 - **Skill** → `skills/<name>/SKILL.md` with `name` (= directory) and
   `description`. One skill, one playbook.
 - **Command** → `commands/<name>.md` with `description`, plus e.g.
@@ -100,7 +105,8 @@ Update the tables in `README.md` when you add or rename any of these.
   no external dependencies beyond `git`, `python3`, and coreutils. Prefer
   readable functions over clever one-liners. Keep it idempotent: running a
   command twice must not break anything or destroy user customizations.
-- Python: stdlib only. No third-party packages, ever, for the MCP server.
+- Python: stdlib only. No third-party packages, ever, for the MCP server or the
+  adapters.
 - Match the surrounding style. Do not reformat unrelated code.
 
 ## Changing branch protection

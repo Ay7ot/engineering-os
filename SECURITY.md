@@ -15,7 +15,7 @@ credit in the advisory if you want it.
 
 The public engine repository:
 
-- `scripts/eng` — the bootstrap/health/worktree CLI
+- `scripts/eng` and `scripts/eos_sync.py`: the bootstrap/health/sync/worktree CLI
 - `mcp/engineering-memory/server.py` — the stdio MCP server
 - `agents/`, `skills/`, `commands/`: editor-neutral agent, skill, and command definitions
 - `adapters/`: per-editor renderers, including the Claude Code permission guard hook
@@ -25,7 +25,8 @@ The public engine repository:
 
 - Your private data directory (`~/EngineeringOS/data`, or `$ENGINEERING_OS_DATA`).
   That is your content, not part of this project.
-- OpenCode itself, and any other agent runtime. Report those to their projects.
+- OpenCode, Claude Code, and any other editor or agent runtime. Report those to
+  their projects. (How our adapters configure them is in scope.)
 - Anything that requires an attacker to already have local code execution or
   write access to your machine.
 
@@ -40,6 +41,9 @@ The public engine repository:
   config locations of the editors you sync (`~/.config/opencode/`, `~/.claude/`,
   `~/.claude.json`). Adapters only overwrite files they wrote (tracked in a
   manifest) and back up shared JSON configs before changing them.
+- Read-only agents are enforced, not just instructed: OpenCode applies their
+  permission maps, and in Claude Code a `PreToolUse` guard hook blocks anything
+  outside the allowlist and blocks on any internal error (fail closed).
 - Privileged operations (production deploys, destructive migrations,
   irreversible data changes) require explicit human approval.
 
