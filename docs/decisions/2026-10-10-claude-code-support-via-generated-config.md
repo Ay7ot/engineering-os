@@ -1,7 +1,9 @@
 # ADR: Claude Code support via config generated from `opencode/`
 
 - **Date:** 2026-10-10
-- **Status:** Accepted
+- **Status:** Accepted. Source layout superseded by
+  [2026-10-10 editor-neutral source and adapters](2026-10-10-editor-neutral-source-and-adapters.md)
+  (`opencode/` → `agents/`, `skills/`, `commands/`; `scripts/claude_sync.py` → `adapters/claude/`).
 - **Deciders:** Operator (Ay7ot)
 - **Project:** engineering-os
 

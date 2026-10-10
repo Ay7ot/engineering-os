@@ -26,12 +26,15 @@ jobs:
         run: bash -n scripts/eng
 
       - name: Syntax check (python)
-        run: python3 -m py_compile mcp/engineering-memory/server.py scripts/claude_sync.py claude/hooks/eos_guard.py
+        run: python3 -m py_compile mcp/engineering-memory/server.py scripts/eos_sync.py adapters/common.py adapters/opencode/adapter.py adapters/claude/adapter.py adapters/claude/hooks/eos_guard.py claude/hooks/eos_guard.py
 
       - name: Script tests
         run: bash tests/test_eng.sh
 
-      - name: Claude Code sync tests
+      - name: Adapter tests (neutral source, golden, OpenCode)
+        run: python3 tests/test_adapters.py
+
+      - name: Claude Code adapter tests
         run: bash tests/test_claude_sync.sh
 
       - name: MCP tests

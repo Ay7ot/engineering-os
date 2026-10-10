@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Tests for `eng sync-claude` (scripts/claude_sync.py) and claude/hooks/eos_guard.py.
+# Tests for the Claude Code adapter (adapters/claude) and its guard hook.
 # Hermetic: HOME points at a temp dir, no network, no real Claude config touched.
 # Run: bash tests/test_claude_sync.sh
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENG="$REPO_ROOT/scripts/eng"
-GUARD="$REPO_ROOT/claude/hooks/eos_guard.py"
+GUARD="$REPO_ROOT/adapters/claude/hooks/eos_guard.py"
 
 pass=0
 fail=0
@@ -46,7 +46,7 @@ mkdir -p "$C/skills/testing"
 printf -- '---\nname: testing\ndescription: my own\n---\nmine\n' > "$C/skills/testing/SKILL.md"
 
 echo "test_claude_sync: syntax"
-if python3 -m py_compile "$REPO_ROOT/scripts/claude_sync.py" "$GUARD"; then ok "python compiles"; else no "python compiles"; fi
+if python3 -m py_compile "$REPO_ROOT/adapters/claude/adapter.py" "$REPO_ROOT/scripts/eos_sync.py" "$GUARD"; then ok "python compiles"; else no "python compiles"; fi
 
 echo "test_claude_sync: first sync"
 out="$("$ENG" sync-claude 2>&1 || true)"
@@ -67,7 +67,7 @@ expect_contains "explorer has name" "name: explorer" "$explorer"
 expect_contains "explorer cannot edit" "disallowedTools: Edit, Write, NotebookEdit" "$explorer"
 expect_contains "explorer bash guarded" "eos_guard.py bash --allow 'git status *'" "$explorer"
 expect_contains "explorer model mapped" "model: haiku" "$explorer"
-expect_missing "opencode permission map not leaked" "permission:" "$explorer"
+expect_missing "source permission map not leaked" "permissions:" "$explorer"
 
 builder="$(cat "$C/agents/builder.md")"
 expect_missing "builder unrestricted" "disallowedTools" "$builder"
@@ -87,7 +87,7 @@ expect_file "renamed command eos-review" "$C/commands/eos-review.md"
 expect_nofile "built-in command name not shadowed" "$C/commands/review.md"
 feature="$(cat "$C/commands/feature.md")"
 expect_contains "command keeps \$ARGUMENTS" '$ARGUMENTS' "$feature"
-expect_missing "command drops opencode agent key" "agent: lead" "$feature"
+expect_missing "command drops opencode-only keys" "agent: lead" "$feature"
 
 md="$(cat "$C/CLAUDE.md")"
 expect_contains "CLAUDE.md keeps user content" "be terse" "$md"
@@ -102,6 +102,9 @@ expect_contains "style carries lead role" "Lead Agent of EngineeringOS" "$style"
 expect_contains "style lists subagents" '`explorer`' "$style"
 expect_contains "settings default style" '"outputStyle": "EngineeringOS Lead"' "$(cat "$C/settings.json")"
 expect_contains "architect edit guard protects claude dir" "--protect $C" "$architect"
+expect_contains "architect cannot edit PRINCIPLES.md" "--protect $REPO_ROOT/PRINCIPLES.md" "$architect"
+expect_contains "architect cannot edit the data dir" "--protect $TMP/data" "$architect"
+expect_contains "architect cannot edit agent sources" "--protect $REPO_ROOT/agents" "$architect"
 
 cj="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); m=d["mcpServers"]; print(d["numStartups"], "other" in m, m["engineering-memory"]["env"]["ENGINEERING_OS_DATA"])' "$HOME/.claude.json")"
 expect_contains ".claude.json preserves keys and sets data dir" "3 True $TMP/data" "$cj"
@@ -127,7 +130,7 @@ expect_contains "settings merge keeps other keys" "dark EngineeringOS Lead" "$st
 echo "test_claude_sync: MCP via claude CLI when present"
 rm -f "$HOME/.claude.json"
 printf '#!/bin/sh\necho "$@" >> "%s/cli.log"\nexit 0\n' "$TMP" > "$TMP/fakeclaude"; chmod +x "$TMP/fakeclaude"
-out="$(python3 "$REPO_ROOT/scripts/claude_sync.py" sync --engine "$REPO_ROOT" --data "$TMP/data" --claude-cli "$TMP/fakeclaude" 2>&1 || true)"
+out="$(python3 "$REPO_ROOT/scripts/eos_sync.py" sync --target claude --engine "$REPO_ROOT" --data "$TMP/data" --claude-cli "$TMP/fakeclaude" 2>&1 || true)"
 expect_contains "uses claude mcp add-json" "via \`claude mcp add-json\`" "$out"
 expect_contains "CLI called with user scope" "mcp add-json --scope user engineering-memory" "$(cat "$TMP/cli.log")"
 expect_nofile "CLI path does not hand-edit .claude.json" "$HOME/.claude.json"
@@ -135,16 +138,21 @@ expect_nofile "CLI path does not hand-edit .claude.json" "$HOME/.claude.json"
 
 echo "test_claude_sync: permission translation fails closed"
 python3 - "$REPO_ROOT" <<'PY' && ok "ask/unknown/commented values deny" || no "ask/unknown/commented values deny"
-import sys; sys.path.insert(0, sys.argv[1] + "/scripts")
-import claude_sync as cs
-fm, _ = cs.split_frontmatter("---\npermission:\n  edit: ask\n  bash: deny  # read-only\n  webfetch: maybe\n---\nbody\n")
-dis, hooks = cs.translate_permissions(fm["permission"], "py", "g")
+import sys; sys.path.insert(0, sys.argv[1])
+from adapters.claude import adapter as cs
+from adapters.common import parse_frontmatter
+fm, _ = parse_frontmatter("---\npermission:\n  edit: ask\n  bash: deny  # read-only\n  webfetch: maybe\n---\nbody\n")
+dis, hooks = cs.translate_permissions(fm["permission"], "py")
 assert {"Edit", "Write", "NotebookEdit", "Bash", "WebFetch"} <= set(dis), dis
 assert not hooks, hooks
-fm, _ = cs.split_frontmatter("---\r\npermission:\r\n  edit: deny\r\n---\r\nbody\r\n")
-assert "Edit" in cs.translate_permissions(fm["permission"], "py", "g")[0], "CRLF"
+fm, _ = parse_frontmatter("---\r\npermission:\r\n  edit: deny\r\n---\r\nbody\r\n")
+assert "Edit" in cs.translate_permissions(fm["permission"], "py")[0], "CRLF"
 assert "eos-code-review" in cs.rename_refs("see ~/.claude/skills/code-review/SKILL.md")
-assert "opencode/skills/code-review" in cs.rename_refs("opencode/skills/code-review")
+assert "skills/code-review/SKILL.md" == cs.rename_refs("skills/code-review/SKILL.md")
+dis, hooks = cs.translate_permissions({"bash": {"*": "deny", "npm *": "allow", "npm publish *": "deny"}}, "py")
+assert "--deny 'npm publish *'" in hooks[0][1], hooks
+dis, hooks = cs.translate_permissions({"edit": {"*": "allow", "*.env": "ask"}}, "py")
+assert hooks and "--deny '*.env'" in hooks[0][1], hooks
 PY
 
 echo "test_claude_sync: stale managed files removed, user files kept"
@@ -195,6 +203,24 @@ R=(bash --allow 'git branch *' --allow 'git remote *' --allow 'git *')
 [ "$(guard '{"tool_input":{"command":"git reset --hard"}}' "${R[@]}")" = 2 ] && ok "git reset blocked under git *" || no "git reset blocked under git *"
 [ "$(guard '{"tool_input":{"command":"git -c alias.x=!sh x"}}' "${R[@]}")" = 2 ] && ok "git -c blocked" || no "git -c blocked"
 [ "$(guard '{"tool_input":{"command":"git show HEAD"}}' "${R[@]}")" = 0 ] && ok "git show allowed under git *" || no "git show allowed under git *"
+N=(bash --allow 'npm *' --deny 'npm publish *')
+[ "$(guard '{"tool_input":{"command":"npm publish x"}}' "${N[@]}")" = 2 ] && ok "deny inside allowlist blocks" || no "deny inside allowlist blocks"
+[ "$(guard '{"tool_input":{"command":"npm test"}}' "${N[@]}")" = 0 ] && ok "allowlist still allows" || no "allowlist still allows"
+[ "$(guard '{"tool_input":{"file_path":"/x/.env"}}' edit --allow '*' --deny '.env' --deny '*.env')" = 2 ] && ok "edit deny glob blocks" || no "edit deny glob blocks"
+
+echo "test_claude_sync: legacy guard path shim (running sessions)"
+SHIM="$REPO_ROOT/claude/hooks/eos_guard.py"
+r="$(printf '{"tool_input":{"command":"git log -1"}}' | python3 "$SHIM" bash --allow 'git log *' >/dev/null 2>&1 && echo 0 || echo $?)"
+[ "$r" = 0 ] && ok "shim forwards allowed command" || no "shim forwards allowed command ($r)"
+r="$(printf '{"tool_input":{"command":"rm -rf x"}}' | python3 "$SHIM" bash --allow 'git log *' >/dev/null 2>&1 && echo 0 || echo $?)"
+[ "$r" = 2 ] && ok "shim blocks disallowed command" || no "shim blocks disallowed command ($r)"
+mkdir -p "$TMP/shimtest/claude/hooks"; cp "$SHIM" "$TMP/shimtest/claude/hooks/"
+r="$(printf '{"tool_input":{"command":"git log"}}' | python3 "$TMP/shimtest/claude/hooks/eos_guard.py" bash --allow 'git log *' >/dev/null 2>&1 && echo 0 || echo $?)"
+[ "$r" = 2 ] && ok "shim fails closed when real guard is missing" || no "shim fails closed when real guard is missing ($r)"
+
+echo "test_claude_sync: health when Claude Code is not installed"
+out="$(HOME="$TMP/nohome" PATH="/usr/bin:/bin" python3 "$REPO_ROOT/scripts/eos_sync.py" health --target claude --engine "$REPO_ROOT" --data "$TMP/data" 2>&1 || true)"
+expect_contains "reports not installed" "Claude Code: not installed" "$out"
 
 echo
 echo "test_claude_sync: $pass passed, $fail failed"

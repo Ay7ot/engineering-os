@@ -58,9 +58,13 @@ flowchart LR
 ```
 
 The engine ships the rules, agent definitions, skills, commands, the MCP server,
-and the CLI. Your data directory holds everything specific to you. `eng setup`
-copies agents/skills/commands into `~/.config/opencode/` and wires the MCP server
-into your OpenCode config with `$ENGINEERING_OS_DATA` pointing at your data.
+and the CLI. Your data directory holds everything specific to you. Agents, skills
+and commands are written once in an **editor-neutral** format (`agents/`,
+`skills/`, `commands/`). Per-editor **adapters** (`adapters/<editor>/`) render
+them into each tool's own format and register the MCP server there with
+`$ENGINEERING_OS_DATA` pointing at your data. `eng setup` runs every adapter
+whose editor is installed. Today: OpenCode and Claude Code. See
+[docs/adapters.md](docs/adapters.md) to add another.
 
 Markdown is the source of truth. The SQLite database is a search index (FTS5
 where available) and can be rebuilt. If the DB is lost, search falls back to
@@ -87,12 +91,12 @@ git clone https://github.com/Ay7ot/engineering-os.git ~/EngineeringOS
 
 `eng setup` does all of this for you:
 
-- checks `git`, `python3`, `opencode` and verifies `sqlite3` is importable
+- checks `git` and `python3`, detects which editors you have, and verifies `sqlite3` is importable
 - creates `~/EngineeringOS/data` with the standard layout
 - seeds your `USER.md` from `USER.example.md` if you do not have one
-- copies agents, skills, and commands into `~/.config/opencode/`
-- registers the `engineering-memory` MCP server in `opencode.jsonc`
-- sets `lead` as the default agent (only if you have not set your own)
+- runs each installed editor's adapter: installs agents, skills, and commands
+  in that editor's format, registers the `engineering-memory` MCP server, and
+  makes the `lead` role the default (only if you have not chosen your own)
 - adds an `eng` shell alias to your `.zshrc` or `.bashrc`
 - runs health checks and prints what it found
 
@@ -263,8 +267,10 @@ One bash script, idempotent, no side effects on re-run.
 ```sh
 eng setup                            # bootstrap deps, data, config, MCP, health
 eng health                           # verify engine, data, MCP, agents, skills
-eng sync-opencode                    # re-sync agents/skills/commands + MCP config
-eng sync-claude                      # same, translated for Claude Code (see below)
+eng sync [all|<editor>]              # render + install for installed editors (default all)
+eng sync-opencode                    # alias: eng sync opencode
+eng sync-claude                      # alias: eng sync claude
+eng targets                          # list known editors and whether each is installed
 eng worktree new <name> [--type fix] # isolated worktree per feature/bug
 eng worktree list                    # show active and closed worktrees
 eng worktree close <name>            # remove it (refuses if dirty)
@@ -279,17 +285,17 @@ worktree, never two.
 
 ### Claude Code
 
-`eng sync-claude` (also run by `eng setup` when `~/.claude` or the `claude` CLI
-exists) generates Claude Code config from the same `opencode/` sources, so one
-engine feeds both tools and both share the same memory:
+The Claude Code adapter (`adapters/claude/`, run by `eng sync claude` and by
+`eng setup` when `~/.claude` or the `claude` CLI exists) renders the same
+neutral sources, so every editor shares one engine and one memory:
 
 | EngineeringOS | Claude Code |
 |---|---|
-| `opencode/agents/*.md` (subagents) | `~/.claude/agents/*.md`. `permission:` becomes `disallowedTools` plus a `PreToolUse` hook (`claude/hooks/eos_guard.py`) that enforces bash/edit allowlists, so read-only agents stay read-only. Translation fails closed: only an exact `allow` grants a capability (`ask` becomes deny). The guard also keeps git read-only for allowlisted agents (no push/reset/branch -D/--output, even under `git *`) and blocks edits to Claude Code config. Models: architect/reviewer/security → opus, explorer → haiku, others → sonnet |
-| `opencode/agents/lead.md` (primary) | The **EngineeringOS Lead** output style (`~/.claude/output-styles/eos-lead.md`, keeps Claude Code's coding instructions), set as the default `outputStyle` in `~/.claude/settings.json` unless you already chose another style. Switch per session in the app or with `/output-style` |
+| `agents/*.md` (`role: subagent`) | `~/.claude/agents/*.md`. `permissions:` becomes `disallowedTools` plus a `PreToolUse` hook (`adapters/claude/hooks/eos_guard.py`) that enforces bash/edit allowlists, so read-only agents stay read-only. Translation fails closed: only an exact `allow` grants a capability (`ask` becomes deny). The guard also keeps git read-only for allowlisted agents (no push/reset/branch -D/--output, even under `git *`) and blocks edits to Claude Code config. Models come from `model_tier` (deep → opus, standard → sonnet, fast → haiku) unless `targets.claude.model` overrides |
+| `agents/lead.md` (`role: primary`) | The **EngineeringOS Lead** output style (`~/.claude/output-styles/eos-lead.md`, keeps Claude Code's coding instructions), set as the default `outputStyle` in `~/.claude/settings.json` unless you already chose another style. Switch per session in the app or with `/output-style` |
 | always-on context | A managed block in `~/.claude/CLAUDE.md` importing `PRINCIPLES.md` and `USER.md`, plus the memory and `AGENTS.md` rules. Your own CLAUDE.md content is kept |
-| `opencode/skills/` | `~/.claude/skills/` |
-| `opencode/commands/` | `~/.claude/commands/` |
+| `skills/` | `~/.claude/skills/` |
+| `commands/` | `~/.claude/commands/` |
 | `engineering-memory` MCP | user-scope server, registered with `claude mcp add-json` when the CLI is on PATH; otherwise merged into `~/.claude.json` (backup at `~/.claude.json.engineeringos.bak`; restart Claude Code and re-run `eng health` if it was open) |
 
 Names that collide with Claude Code built-ins get an `eos-` prefix:
@@ -297,8 +303,19 @@ Names that collide with Claude Code built-ins get an `eos-` prefix:
 skills. Generated files are tracked in `~/.claude/.engineeringos-manifest.json`;
 re-syncing prunes files it no longer produces. A file it did not write is never
 overwritten: sync prints `SKIPPED` and leaves it alone.
-Respects `CLAUDE_CONFIG_DIR`. Edit the sources under `opencode/`, never the
-generated files, then re-run `eng sync-claude` and restart Claude Code.
+Respects `CLAUDE_CONFIG_DIR`. Edit the neutral sources, never the generated
+files, then re-run `eng sync` and restart your editors.
+
+### OpenCode
+
+The OpenCode adapter (`adapters/opencode/`) writes `~/.config/opencode/`
+(respects `XDG_CONFIG_HOME`). It renders `role` as `mode`, `permissions` as
+`permission`, and passes `targets.opencode.*` (model, temperature, command
+`agent`/`subtask`) through. It registers the MCP server in the shape your
+OpenCode reads: `mcp.servers.<name>` for v2, `mcp.<name>` for v1. It also removes
+the stale v1 entry older `eng` versions wrote. Ownership works like the Claude
+adapter (manifest, `SKIPPED` for files it did not write). On the first run it
+adopts files the old copy-based sync installed.
 
 ---
 
@@ -363,7 +380,7 @@ gh pr create --fill
 A maintainer reviews and approves. On approval, any new push dismisses the
 approval, so what is reviewed is exactly what merges. Then it is squash-merged.
 
-CI runs `bash -n scripts/eng`, `python3 -m py_compile`, `tests/test_eng.sh`, `tests/test_claude_sync.sh`,
+CI runs `bash -n scripts/eng`, `python3 -m py_compile`, `tests/test_eng.sh`, `tests/test_adapters.py`, `tests/test_claude_sync.sh`,
 `tests/test_mcp.sh`, and `tests/test_ruleset.py`. Run the same tests locally
 before you push and CI should be green.
 
@@ -384,11 +401,11 @@ through [SECURITY.md](SECURITY.md), never a public issue.
 
 ```sh
 # Remove the engine sync (agents, skills, commands, MCP config) then delete the repos.
-rm -rf ~/.config/opencode/agents ~/.config/opencode/skills ~/.config/opencode/commands
+# OpenCode: delete the files listed in ~/.config/opencode/.engineeringos-manifest.json.
 # Claude Code: delete the files listed in ~/.claude/.engineeringos-manifest.json, the
 # EngineeringOS block in ~/.claude/CLAUDE.md, "outputStyle" in ~/.claude/settings.json,
 # and mcpServers."engineering-memory" in ~/.claude.json.
-# Edit ~/.config/opencode/opencode.jsonc and remove the "engineering-memory" mcp entry.
+# Edit ~/.config/opencode/opencode.jsonc and remove mcp.servers."engineering-memory".
 rm -rf ~/EngineeringOS
 ```
 
