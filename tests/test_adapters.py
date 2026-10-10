@@ -5,6 +5,7 @@ Run: python3 tests/test_adapters.py
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -120,11 +121,79 @@ with tempfile.TemporaryDirectory() as t:
     check("'*' default must be the first rule", "must be the first rule" in (raises(lambda: load_source(eng)) or ""))
 
 print("test_adapters: OpenCode golden (vs pre-migration opencode/ files)")
-mism = []
+# Intended changes since the fixtures were captured. The golden compares each
+# rendered agent with its fixture after applying exactly these edits, so any
+# other drift (a dropped rule, a reorder, a stray prompt edit) still fails.
+# bash: rules removed in place, then new rules appended in order.
+GIT_BRANCH_READ = ["git branch", "git branch -a", "git branch -r", "git branch -v", "git branch -vv",
+                   "git branch --show-current", "git branch --list *", "git branch --contains *",
+                   "git branch --merged *", "git branch --no-merged *"]
+GIT_REMOTE_READ = ["git remote", "git remote -v", "git remote get-url *"]
+
+
+def no_git_writes(*subs):
+    return [(f"git {s} *{flag}*", "deny") for s in subs for flag in ("--output", "--ext-diff")]
+
+
+def allows(*keys):
+    return [(k, "allow") for k in keys]
+
+
+EXPLORER_TOOLS_OLD = "(`status`, `rev-parse`, `log`, `branch`, `remote`, `ls-files`)."
+EXPLORER_TOOLS_NEW = ("(`status`, `rev-parse`, `log`, `ls-files`, listing forms of `branch` such as "
+                      "`git branch -a` / `git branch --list <pattern>`, and `git remote -v` / "
+                      "`git remote get-url <name>`). Anything that changes branches, remotes, or writes "
+                      "files (e.g. `git branch -D`, `git remote set-url`, `git log --output`) is denied.")
+RESEARCHER_RISKS = "- Identify risks and limitations, not just answers.\n"
+RESEARCHER_TOOLS = (
+    "- TOOL RESTRICTIONS (by design): `bash` is limited to read-only git inspection of local repos "
+    "(`log`, `show`, `diff`, `status`, `rev-parse`, `ls-files`, `describe`, listing forms of "
+    "`branch`/`tag`, `git remote -v`) and `opencode mcp`. Do not clone, fetch, or change any repo; "
+    "read upstream source through `webfetch` (e.g. raw GitHub files) instead.\n")
+FIXTURE_DELTAS = {  # 2026-10-10: read-only agents get read-only git in OpenCode too
+    "explorer": {"bash_remove": ["git branch *", "git remote *"],
+                 "bash_add": allows(*GIT_BRANCH_READ, *GIT_REMOTE_READ) + no_git_writes("log"),
+                 "body": [(EXPLORER_TOOLS_OLD, EXPLORER_TOOLS_NEW)]},
+    "reviewer": {"bash_remove": ["git branch *"],
+                 "bash_add": allows(*GIT_BRANCH_READ) + no_git_writes("diff", "log", "show")},
+    "security": {"bash_add": no_git_writes("diff", "log", "show")},
+    "researcher": {"bash_remove": ["git *"],
+                   "bash_add": allows("git status *", "git rev-parse *", "git log *", "git show *",
+                                      "git diff *", "git ls-files *", "git describe *", "git tag",
+                                      "git tag --list *", "git tag -l *", *GIT_BRANCH_READ,
+                                      *GIT_REMOTE_READ) + no_git_writes("diff", "log", "show"),
+                   "body": [(RESEARCHER_RISKS, RESEARCHER_RISKS + RESEARCHER_TOOLS)]},
+    "architect": {"bash_add": no_git_writes("log")},
+}
+
+
+def apply_delta(name, fm, body, problems):
+    d = FIXTURE_DELTAS.get(name)
+    if not d:
+        return fm, body
+    bash = dict(fm["permission"]["bash"])
+    for k in d.get("bash_remove", []):
+        if k not in bash:
+            problems.append(f"delta for {name}: {k!r} not in fixture")
+        bash.pop(k, None)
+    for k, v in d.get("bash_add", []):
+        if k in bash:
+            problems.append(f"delta for {name}: {k!r} already in fixture")
+        bash[k] = v
+    fm = dict(fm, permission=dict(fm["permission"], bash=bash))
+    for a, b in d.get("body", []):
+        if body.count(a) != 1:
+            problems.append(f"delta for {name}: body text not found exactly once: {a[:40]!r}")
+        body = body.replace(a, b, 1)
+    return fm, body
+
+
+mism, delta_problems = [], []
 for a in src.agents:
     # typed=True: 0.1 / false must stay number / bool, not become "0.1" / "false"
     new = parse_frontmatter(oc.render_agent(a), typed=True)
     old = parse_frontmatter((FIXTURES / "agents" / f"{a.name}.md").read_text(), typed=True)
+    old = apply_delta(a.name, *old, delta_problems)
     if ordered(new[0]) != ordered(old[0]) or new[1] != old[1]:
         mism.append(f"agents/{a.name}")
 for c in src.commands:
@@ -136,7 +205,61 @@ for s in src.skills:
     fx = FIXTURES / "skills" / s.name / "SKILL.md"
     if fx.exists() and oc.render_skill(s) != fx.read_bytes():
         mism.append(f"skills/{s.name}")
-check("every agent, command and skill matches the fixture (typed, order-sensitive)", not mism, mism)
+check("fixture deltas apply cleanly", not delta_problems, delta_problems)
+check("every agent, command and skill matches the fixture + declared deltas (typed, order-sensitive)", not mism, mism)
+check("deltas only touch existing agents", set(FIXTURE_DELTAS) <= {a.name for a in src.agents}, set(FIXTURE_DELTAS))
+
+
+def oc_match(cmd, pattern):
+    """OpenCode wildcard: '*' is any run of characters; a trailing ' *' is optional."""
+    rx = "".join(".*" if c == "*" else re.escape(c) for c in pattern)
+    if pattern.endswith(" *"):
+        rx = rx[:-len(re.escape(" ") + ".*")] + "( .*)?"
+    return re.fullmatch(rx, cmd, re.S) is not None
+
+
+def oc_bash(rules, cmd):
+    """OpenCode resolves a permission map by the last matching rule."""
+    if isinstance(rules, str):
+        return rules
+    hits = [v for k, v in rules.items() if oc_match(cmd, k)]
+    return hits[-1] if hits else "ask"
+
+
+print("test_adapters: read-only agents cannot write through git (OpenCode semantics)")
+check("matcher: trailing ' *' optional", oc_match("git log", "git log *") and oc_match("git log -1", "git log *"))
+check("matcher: exact rule is exact", oc_match("git branch -a", "git branch -a") and not oc_match("git branch -a x", "git branch -a"))
+MUTATING_GIT = ["git push", "git push origin main", "git reset --hard", "git clean -fdx", "git clone https://x/y",
+                "git fetch", "git pull", "git checkout .", "git commit -m x", "git stash", "git config user.name x",
+                "git branch newb", "git branch -D main", "git branch -m a b", "git branch -f main HEAD~1",
+                "git branch --delete main", "git branch -u origin/x", "git remote add x https://x",
+                "git remote set-url origin https://x", "git remote remove origin", "git remote rename origin x",
+                "git tag v9", "git tag -d v1", "git log --output=/tmp/x", "git log -p --output /tmp/x",
+                "git show --output=/tmp/x HEAD", "git diff --output=/tmp/x", "git diff --ext-diff",
+                "git -c alias.x=!sh x", "git -C /tmp push"]
+READ_ONLY = ["explorer", "reviewer", "security", "researcher", "architect"]
+
+
+def git_leaks(maps):
+    return [f"{n}: {c}" for n in READ_ONLY for c in MUTATING_GIT if oc_bash(maps[n], c) == "allow"]
+
+
+old_maps = {n: parse_frontmatter((FIXTURES / "agents" / f"{n}.md").read_text())[0]["permission"]["bash"]
+            for n in READ_ONLY}
+check("simulation flags the pre-change maps (researcher git *, explorer git branch *)",
+      {"researcher: git push", "explorer: git branch -D main", "explorer: git remote set-url origin https://x",
+       "explorer: git log --output=/tmp/x"} <= set(git_leaks(old_maps)))
+leaks = git_leaks({a.name: a.fm["permissions"]["bash"] for a in src.agents})
+check("no read-only agent may run a mutating git command", not leaks, leaks)
+by_name = {a.name: a.fm["permissions"]["bash"] for a in src.agents}
+want = {"explorer": ["git status", "git log --oneline -5", "git branch -a", "git branch --list 'feat/*'",
+                     "git remote -v", "git remote get-url origin", "git ls-files src"],
+        "reviewer": ["git diff main...HEAD", "git show HEAD", "git branch --contains HEAD"],
+        "researcher": ["git log -3", "git tag --list 'v*'", "git describe --tags", "opencode mcp list"],
+        "architect": ["git log --oneline"],
+        "security": ["git diff", "npm audit"]}
+lost = [f"{n}: {c}" for n, cs in want.items() for c in cs if oc_bash(by_name[n], c) != "allow"]
+check("read-only git inspection still allowed", not lost, lost)
 check("typed golden would catch quoting drift",
       parse_frontmatter("---\nt: 0.1\n---\n", typed=True)[0] != parse_frontmatter('---\nt: "0.1"\n---\n', typed=True)[0])
 

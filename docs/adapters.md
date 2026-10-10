@@ -24,7 +24,7 @@ and sync aborts before writing anything.
 | `description` | yes | When to use this agent |
 | `role` | yes | `primary` (the orchestrating mode) or `subagent` |
 | `model_tier` | no | `deep`, `standard` or `fast`; each adapter maps it to a model |
-| `permissions` | no | `read`, `edit`, `bash`, `webfetch`, `websearch`, `task`, ...: `allow` / `deny` / `ask`, or a map of patterns. In a map, the `"*"` default must come first (`"*": deny`, then `"git log *": allow`); the loader rejects other orders because editors resolve precedence differently. Adapters must never grant more than the most restrictive reading (Claude: denies win over allows) |
+| `permissions` | no | `read`, `edit`, `bash`, `webfetch`, `websearch`, `task`, ...: `allow` / `deny` / `ask`, or a map of patterns. In a map, the `"*"` default must come first (`"*": deny`, then `"git log *": allow`); the loader rejects other orders because editors resolve precedence differently. Adapters must never grant more than the most restrictive reading (Claude: denies win over allows). To carve a write form out of an allow wildcard, put the deny after the allow it narrows (`"git log *": allow`, then `"git log *--output*": deny`): OpenCode applies the last matching rule, the Claude guard checks denies first, so both read it the same way |
 | `targets.<editor>` | no | Settings only that editor understands (e.g. `targets.opencode.temperature`, `targets.claude.model`) |
 
 **Command** (`commands/<name>.md`): `description`, optional `targets.<editor>`
