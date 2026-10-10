@@ -21,7 +21,7 @@ are interchangeable execution surfaces; EngineeringOS is the system of record.
 | Editor adapters | `adapters/<editor>/` | Render the neutral source into each editor and register MCP (OpenCode, Claude Code) |
 | Memory MCP server | `mcp/engineering-memory/server.py` | Exposes data + SQLite/FTS5 over MCP stdio |
 | CLI | `scripts/eng` + `scripts/eos_sync.py` | Idempotent setup, health, per-editor sync, git worktrees, repo protection |
-| Tests | `tests/` | Hermetic CLI, MCP, and ruleset tests; run by CI |
+| Tests | `tests/` | Hermetic CLI, adapter (incl. OpenCode golden fixtures), Claude adapter + guard, MCP, and ruleset tests; run by CI |
 | Templates | `templates/` | Seed files for a new data directory |
 | CI | `.github/workflows/ci.yml` | Syntax checks, tests, ruleset guard |
 | Branch protection | `.github/ruleset.json` | Source of truth for the `main` ruleset |
@@ -51,7 +51,19 @@ gracefully if the DB is lost.
 The engine repo contains **no personal data**. Data is version-controlled
 separately (recommended: a **private** Git repo) so it can be restored after a
 machine reset without ever being published. `$ENGINEERING_OS_DATA` is the only
-coupling point; `eng setup` wires it into the MCP config.
+coupling point; each editor adapter wires it into that editor's MCP config
+(`eng setup` / `eng sync`).
+
+## Editor integration
+
+Agents, skills and commands are written once in an editor-neutral format and
+rendered per editor by adapters (`adapters/<editor>/adapter.py`, contract:
+`detect`, `sync`, `health`). The shared layer (`adapters/common.py`) validates
+the source, never overwrites files it did not write, and fails closed on
+permissions. Supported today: OpenCode and Claude Code. See
+[adapters.md](adapters.md) for the format and how to add an editor, and
+[design/editor-neutral-engine.md](design/editor-neutral-engine.md) for the
+design and its tradeoffs.
 
 ## Flows
 
@@ -84,5 +96,6 @@ solo maintainer unblocked. See `CONTRIBUTING.md` and ADR
 `docs/decisions/2026-10-02-open-source-contributor-workflow-and-branch-protection.md`.
 
 CI (`.github/workflows/ci.yml`) runs the same tests a contributor can run
-locally: `tests/test_eng.sh`, `tests/test_mcp.sh`, `tests/test_ruleset.py`, plus
+locally: `tests/test_eng.sh`, `tests/test_adapters.py`,
+`tests/test_claude_sync.sh`, `tests/test_mcp.sh`, `tests/test_ruleset.py`, plus
 syntax checks. The job is named `ci` and is the required status check.

@@ -13,6 +13,10 @@ projects, tasks) and a SQLite + FTS5 index over it.
 Your data is intentionally kept out of this public repo. See the top-level
 `README.md` for the public-engine / private-data split.
 
+You normally do not start it yourself: `eng sync` registers it in every
+installed editor (OpenCode, Claude Code) with `ENGINEERING_OS_DATA` set, and
+the editor launches it on demand.
+
 ## Run
 
 ```sh

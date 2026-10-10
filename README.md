@@ -12,10 +12,14 @@ local MCP server.
 - **Public engine, private data.** This repository is the engine and contains no
   personal data. Everything you know lives in a separate data directory you
   version-control privately.
-- **No dependencies.** The MCP server is stdlib-only Python. The CLI is one
-  `bash` script. Nothing to `pip install`, no daemon, no cloud.
+- **No dependencies.** The MCP server and the editor adapters are stdlib-only
+  Python, and the CLI is one `bash` entry point. Nothing to `pip install`, no
+  daemon, no cloud.
 - **Agents with defined jobs.** A lead orchestrator delegates to specialized
   read-only and write agents instead of one super-agent doing everything.
+- **Any editor.** Agents, skills and commands are written once in an
+  editor-neutral format; adapters install them into OpenCode and Claude Code
+  today, and more editors are one adapter each.
 
 ---
 
@@ -29,6 +33,8 @@ local MCP server.
 - [The commands](#the-commands)
 - [The MCP server](#the-mcp-server)
 - [The `eng` CLI](#the-eng-cli)
+- [Editors](#editors)
+- [Engine layout](#engine-layout)
 - [Split: public engine vs private data](#split-public-engine-vs-private-data)
 - [Branch protection and contributing](#branch-protection-and-contributing)
 - [Uninstall](#uninstall)
@@ -42,18 +48,25 @@ Two directories, one environment variable between them:
 
 ```mermaid
 flowchart LR
-    subgraph tool["Your coding tool (OpenCode, Codex, ...)"]
-        A[Lead agent] --> B[Subagents]
-        A --> C[Skills + commands]
-    end
-    B <-->|MCP stdio| M[MCP server<br/>engineering-memory]
-    M --> D[(data/)]
+    accTitle: How EngineeringOS fits together
+    accDescr: The engine's neutral agents, skills and commands are rendered by per-editor adapters into each coding tool, where agents talk to the engineering-memory MCP server backed by your private data directory.
     subgraph repo["~/EngineeringOS (this repo, public)"]
         E[PRINCIPLES.md]
-        F[agents / skills / commands]
-        G[scripts/eng]
+        F["agents / skills / commands<br/>(editor-neutral)"]
+        AD["adapters/<br/>opencode, claude, ..."]
+        G["eng sync"]
         H[mcp/]
     end
+    F --> AD
+    G --> AD
+    subgraph tool["Your editors (OpenCode, Claude Code, ...)"]
+        A[Lead role] --> B[Subagents]
+        A --> C[Skills + commands]
+    end
+    AD -->|"installs + registers MCP"| tool
+    B <-->|MCP stdio| M["MCP server<br/>engineering-memory"]
+    H --- M
+    M --> D[("data/")]
     D ---|ENGINEERING_OS_DATA| M
 ```
 
@@ -86,7 +99,7 @@ git clone https://github.com/Ay7ot/engineering-os.git ~/EngineeringOS
 # 2. Bootstrap everything (idempotent, safe to re-run)
 ~/EngineeringOS/scripts/eng setup
 
-# 3. Restart OpenCode so it loads the new agents, skills, commands, and MCP
+# 3. Restart your editors (OpenCode, Claude Code) so they load the new agents, skills, commands, and MCP
 ```
 
 `eng setup` does all of this for you:
@@ -127,10 +140,11 @@ git clone <your-private-data-repo> ~/EngineeringOS/data
 
 ## Everyday usage
 
-Open OpenCode in a project and use the lead agent, either directly or through a
-command. You provide intent and approve consequential decisions; the agents do
-research, exploration, architecture, implementation, testing, review, and
-bookkeeping.
+Open your editor in a project and work through the lead role, either directly
+or through a command. In OpenCode, `lead` is the default agent. In Claude Code,
+the **EngineeringOS Lead** output style is the default mode for every session.
+You provide intent and approve consequential decisions; the agents do research,
+exploration, architecture, implementation, testing, review, and bookkeeping.
 
 ```mermaid
 flowchart LR
@@ -149,7 +163,7 @@ A typical first run on an existing project:
 
 ```sh
 cd /path/to/your/project
-opencode
+opencode        # or: claude (or open the folder in the Claude desktop app)
 > /init-project
 ```
 
@@ -163,20 +177,28 @@ EngineeringOS memory.
 The lead agent classifies each task and picks the smallest safe workflow, so a
 typo fix does not spin up nine agents.
 
-| Agent | Mode | What it does | Can write code? |
-|---|---|---|---|
-| **lead** | primary | Orchestrates; classifies complexity; delegates; manages approval gates; final report | yes |
-| **researcher** | subagent | Technical research from primary sources; persists reusable findings | no (writes research only) |
-| **explorer** | subagent | Maps repositories and non-git workspaces; produces repo maps, not dumps | no |
-| **architect** | subagent | Architecture proposals, alternatives, tradeoffs, ADRs, diagrams | markdown only |
-| **planner** | subagent | Turns approved architecture into small, verifiable tasks | no |
-| **builder** | subagent | Implements the approved plan; stops and reports on architectural problems | yes |
-| **tester** | subagent | Writes tests, runs typecheck/lint/test/build, reports PASS/FAIL evidence | tests only |
-| **reviewer** | subagent | Adversarial review; finds reasons NOT to merge | no |
-| **security** | subagent | Security review of auth, data, secrets, injection, dependencies | no |
+| Agent | Role | Model tier | What it does | Can write code? |
+|---|---|---|---|---|
+| **lead** | primary | deep | Orchestrates; classifies complexity; delegates; manages approval gates; final report | yes |
+| **researcher** | subagent | standard | Technical research from primary sources; persists reusable findings | no (writes research only) |
+| **explorer** | subagent | fast | Maps repositories and non-git workspaces; produces repo maps, not dumps | no |
+| **architect** | subagent | deep | Architecture proposals, alternatives, tradeoffs, ADRs, diagrams | markdown only |
+| **planner** | subagent | standard | Turns approved architecture into small, verifiable tasks | no |
+| **builder** | subagent | standard | Implements the approved plan; stops and reports on architectural problems | yes |
+| **tester** | subagent | standard | Writes tests, runs typecheck/lint/test/build, reports PASS/FAIL evidence | tests only |
+| **reviewer** | subagent | deep | Adversarial review; finds reasons NOT to merge | no |
+| **security** | subagent | deep | Security review of auth, data, secrets, injection, dependencies | no |
 
-Read-only agents are locked down at the permission level: their `edit` and
-`bash` access is denied except for the specific read-only commands they need.
+The primary role becomes OpenCode's default agent and Claude Code's default
+output style. Each editor maps the model tier to its own models (see
+[Editors](#editors)).
+
+Read-only agents are locked down at the permission level: `edit` is denied
+(the architect may edit markdown only), and `bash` is denied except an explicit
+list of read-only commands. Git stays read-only for them: push, reset, branch
+deletion, remote changes and file-writing flags like `--output` are denied. In
+OpenCode the permission maps enforce this; in Claude Code a guard hook enforces
+the same rules and blocks on any error.
 
 **Workflows by complexity:**
 
@@ -197,7 +219,9 @@ substantial cost. Everything else is inferred autonomously.
 ## The skills
 
 Skills are playbooks loaded by agents when a task matches. They are plain
-markdown, easy to read and copy.
+markdown, easy to read and copy. In Claude Code, `code-review` and
+`security-review` are installed as `eos-code-review` and `eos-security-review`
+so they do not shadow Claude Code's built-in skills.
 
 | Skill | Use when |
 |---|---|
@@ -223,16 +247,17 @@ markdown, easy to read and copy.
 
 ## The commands
 
-Slash commands in OpenCode that run a full workflow through the lead agent.
+Slash commands that run a full workflow through the lead role, in every editor.
+Two are renamed in Claude Code to avoid its built-in commands.
 
-| Command | What it does |
-|---|---|
-| `/init-project` | Map the workspace, write `AGENTS.md`, register the project |
-| `/feature` | Full feature workflow: explore, research, architect, plan, build, test, review |
-| `/research` | Technical research, persisted to EngineeringOS |
-| `/debug` | Investigate, reproduce, test hypotheses, fix, regression-test |
-| `/review` | Review current changes, a branch, a PR, or specific files |
-| `/worktree` | Create, list, or close git worktrees for features and bug fixes |
+| Command | Claude Code name | What it does |
+|---|---|---|
+| `/init-project` | same | Map the workspace, write `AGENTS.md`, register the project |
+| `/feature` | same | Full feature workflow: explore, research, architect, plan, build, test, review |
+| `/research` | same | Technical research, persisted to EngineeringOS |
+| `/debug` | `/eos-debug` | Investigate, reproduce, test hypotheses, fix, regression-test |
+| `/review` | `/eos-review` | Review current changes, a branch, a PR, or specific files |
+| `/worktree` | same | Create, list, or close git worktrees for features and bug fixes |
 
 ---
 
@@ -262,7 +287,9 @@ printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' \
 
 ## The `eng` CLI
 
-One bash script, idempotent, no side effects on re-run.
+`scripts/eng` is the single entry point (bash). Editor sync and health are
+handled by `scripts/eos_sync.py` and the adapters (stdlib Python). Every command
+is idempotent: re-running changes nothing that is already correct.
 
 ```sh
 eng setup                            # bootstrap deps, data, config, MCP, health
@@ -283,6 +310,34 @@ branch, register themselves in `projects/<name>/worktrees.md`, and refuse to
 close over uncommitted changes unless you pass `--force`. One writer per
 worktree, never two.
 
+---
+
+## Editors
+
+Agents, skills and commands live once in `agents/`, `skills/` and `commands/`
+in an editor-neutral format. Each editor has an **adapter** in
+`adapters/<editor>/` that renders them into that editor's format, installs
+them, and registers the `engineering-memory` MCP server. `eng sync` (and
+`eng setup`) runs every adapter whose editor is installed; `eng targets` shows
+which those are.
+
+Shared rules for every adapter:
+
+- **Never overwrite your files.** Generated files are tracked in a manifest in
+  the editor's config dir. A file sync did not write is reported as `SKIPPED`
+  and left alone; files it no longer produces are pruned.
+- **Fail closed on permissions.** Only an exact `allow` grants a capability.
+- **Merge shared configs, never replace them.** The first backup
+  (`*.engineeringos.bak`) of each config file is kept.
+- **Edit the sources, not the output.** Change `agents/`, `skills/`,
+  `commands/`, then run `eng sync` and restart your editors.
+
+| Editor | Installs into | Status |
+|---|---|---|
+| OpenCode | `~/.config/opencode/` | supported |
+| Claude Code | `~/.claude/`, `~/.claude.json` | supported |
+| Codex, Cursor, Gemini CLI, ... | | add an adapter: [docs/adapters.md](docs/adapters.md) |
+
 ### Claude Code
 
 The Claude Code adapter (`adapters/claude/`, run by `eng sync claude` and by
@@ -300,11 +355,12 @@ neutral sources, so every editor shares one engine and one memory:
 
 Names that collide with Claude Code built-ins get an `eos-` prefix:
 `/eos-review`, `/eos-debug`, and the `eos-code-review` / `eos-security-review`
-skills. Generated files are tracked in `~/.claude/.engineeringos-manifest.json`;
-re-syncing prunes files it no longer produces. A file it did not write is never
-overwritten: sync prints `SKIPPED` and leaves it alone.
-Respects `CLAUDE_CONFIG_DIR`. Edit the neutral sources, never the generated
-files, then re-run `eng sync` and restart your editors.
+skills. Respects `CLAUDE_CONFIG_DIR`.
+
+To switch a single session out of the Lead mode, change its output style back
+to Default (session menu in the desktop app, or `/output-style` in the
+terminal). To stop making it the default, set a different `outputStyle` in
+`~/.claude/settings.json`; sync leaves an existing choice alone.
 
 ### OpenCode
 
@@ -315,7 +371,28 @@ The OpenCode adapter (`adapters/opencode/`) writes `~/.config/opencode/`
 OpenCode reads: `mcp.servers.<name>` for v2, `mcp.<name>` for v1. It also removes
 the stale v1 entry older `eng` versions wrote. Ownership works like the Claude
 adapter (manifest, `SKIPPED` for files it did not write). On the first run it
-adopts files the old copy-based sync installed.
+adopts files the old copy-based sync installed. `lead` becomes `default_agent`
+only if you have not set your own.
+
+---
+
+## Engine layout
+
+```
+~/EngineeringOS/
+  PRINCIPLES.md          global engineering rules every agent follows
+  USER.example.md        template for your private operator profile
+  agents/                editor-neutral agent definitions (lead + 8 subagents)
+  skills/<name>/         playbooks (SKILL.md)
+  commands/              slash-command workflows
+  adapters/              common.py (shared layer) + one folder per editor
+  mcp/engineering-memory/  the stdlib MCP server
+  scripts/               eng (CLI) and eos_sync.py (sync/health)
+  templates/             seeds for a new data directory
+  tests/                 hermetic tests run by CI (+ golden fixtures)
+  docs/                  architecture, adapter guide, design docs, ADRs
+  data/                  your private data (gitignored; see below)
+```
 
 ---
 
