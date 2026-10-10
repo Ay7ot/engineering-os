@@ -14,24 +14,25 @@ metadata:
 
 ## What the tools can and cannot do
 - **Append only.** The `engineering-memory` server can add ADRs, research,
-  state entries and tasks, and change a task's status. It cannot delete or edit
-  existing ADRs, research or state history, and there is no "superseded" flag.
-  Correct the record by adding to it.
-- **Partial reads.** Every tool response is truncated (about 12,000 characters).
-  `get_project_state` and `get_project_context` return `state.md` oldest-first,
-  so on a long-lived project the newest entries are the part that gets cut.
-  `get_project_context` lists only the 10 most recent decisions, and
-  `search_decisions` is a plain text match without a project filter. For a full
-  audit, also **read** the data directory directly (read-only). It is
-  `$ENGINEERING_OS_DATA`, or `data/` inside the engine checkout if unset:
-  `projects/<project>/state.md` (newest entries at the end) and
-  `projects/<project>/decisions/`, plus `decisions/` for global ADRs.
-- **Task details are replaced, not appended.** `update_task` with non-empty
-  `details` overwrites the existing details.
-- **Task status.** Use `done` to close a task. Some tools still list `cancelled`
-  tasks as open, so do not rely on `cancelled` to hide one.
-- **State status.** Always pass `status` to `update_project_state`; omitting it
-  clears the stored status.
+  state entries and tasks, and change a task's status or add to its details.
+  It cannot delete or edit existing ADRs, research or state history, and there
+  is no "superseded" flag. Correct the record by adding to it.
+- **Partial reads.** Every tool response is capped (about 12,000 characters).
+  When `state.md` is too long, `get_project_state` and `get_project_context`
+  return only its newest entries and set `state_truncated`; older history is not
+  in the response. `get_project_context` lists only the 10 most recent
+  decisions, and `search_decisions` is a plain text match without a project
+  filter. For a full audit, also **read** the data directory directly
+  (read-only). It is `$ENGINEERING_OS_DATA`, or `data/` inside the engine
+  checkout if unset: `projects/<project>/state.md` (newest entries at the end)
+  and `projects/<project>/decisions/`, plus `decisions/` for global ADRs.
+- **Task details.** `update_task` with `append_details` adds a line to the
+  existing details; `details` replaces them. Use `append_details` for closing
+  notes.
+- **Task status.** Close a finished task with `done` and an abandoned one with
+  `cancelled`. Neither appears in the open-task lists.
+- **State status.** `update_project_state` keeps the stored status when
+  `status` is omitted, so pass it only when the status changes.
 - **ADR titles.** `record_decision` names the file from the date and the first
   50 characters of the title, and overwrites an existing file with that name.
   Make the start of each title distinct (for example "Consolidated <topic>:
@@ -59,14 +60,14 @@ specific edit.
      distinct title that names each superseded ADR by id or path and states what
      is current.
    - Stale state: `update_project_state` with one consolidated "current state"
-     entry and an explicit `status`.
-   - Dead tasks: read the task's existing details first (`get_active_tasks`
-     filtered to the project returns them; for long lists check the
-     `tasks/` folder in the data directory), then `update_task` to `done` with
-     `details` = existing details + a "Closed: <reason>" line.
+     entry (and a `status` if it changed).
+   - Dead tasks: `update_task` to `done` (finished) or `cancelled` (abandoned
+     or duplicate) with `append_details` = "Closed: <reason>". Do not pass
+     `details`, which would replace the existing text.
 6. **Verify.** Search again and confirm the consolidating ADR appears and names
    the superseded items (it may not rank first; file results are ranked by term
-   matches). Confirm closed tasks no longer appear in `get_active_tasks`.
+   matches). Confirm closed tasks no longer appear in `get_active_tasks` or
+   `get_project_context`.
 
 ## Rules
 - Evidence over memory: confirm against the repo before calling something stale.
@@ -80,5 +81,5 @@ specific edit.
 - [ ] Scope chosen; tools and data-directory files read; coverage noted
 - [ ] Duplicates, superseded, contradicted, stale and dead items listed with evidence
 - [ ] Report shown; approval obtained before changes
-- [ ] Consolidating ADR (distinct title), state entry (with status), task closures (details preserved) applied
+- [ ] Consolidating ADR (distinct title), state entry, task closures (via `append_details`) applied
 - [ ] Re-checked: consolidating ADR found, closed tasks gone from active list

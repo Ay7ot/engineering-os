@@ -31,11 +31,11 @@ DB_PATH = ROOT / "memory" / "engineering_memory.db"
 TOOLS = [
     {"name": "search_knowledge", "description": "Full-text search over EngineeringOS knowledge/, decisions/, research/ and project docs. Returns ranked snippets.",
      "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer", "default": 8}}, "required": ["query"]}},
-    {"name": "get_project_context", "description": "Get full project context: context.md, architecture.md, state.md, recent decisions/research/tasks.",
+    {"name": "get_project_context", "description": "Get full project context: context.md, architecture.md, state.md, recent decisions/research/open tasks (not done or cancelled). If state.md is too long for the response, only its newest entries are returned and state_truncated is set.",
      "inputSchema": {"type": "object", "properties": {"project": {"type": "string"}}, "required": ["project"]}},
-    {"name": "get_project_state", "description": "Get current state.md for a project plus open tasks.",
+    {"name": "get_project_state", "description": "Get current state.md for a project plus open tasks (not done or cancelled). If state.md is too long for the response, only its newest entries are returned and state_truncated is set.",
      "inputSchema": {"type": "object", "properties": {"project": {"type": "string"}}, "required": ["project"]}},
-    {"name": "update_project_state", "description": "Update project state (appends timestamped entry to state.md and DB). Creates project dir if missing.",
+    {"name": "update_project_state", "description": "Update project state (appends timestamped entry to state.md and DB). Creates project dir if missing. Omitting status keeps the previous status.",
      "inputSchema": {"type": "object", "properties": {"project": {"type": "string"}, "state": {"type": "string"}, "status": {"type": "string"}}, "required": ["project", "state"]}},
     {"name": "search_decisions", "description": "Search Architecture Decision Records.",
      "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer", "default": 8}}, "required": ["query"]}},
@@ -53,8 +53,8 @@ TOOLS = [
      "inputSchema": {"type": "object", "properties": {"project": {"type": "string", "default": ""}, "limit": {"type": "integer", "default": 20}}}},
     {"name": "record_task", "description": "Create a task on the blackboard (tasks/ + DB).",
      "inputSchema": {"type": "object", "properties": {"title": {"type": "string"}, "project": {"type": "string", "default": ""}, "owner": {"type": "string", "default": ""}, "status": {"type": "string", "default": "open"}, "details": {"type": "string", "default": ""}}, "required": ["title"]}},
-    {"name": "update_task", "description": "Update task status/details by id.",
-     "inputSchema": {"type": "object", "properties": {"id": {"type": "integer"}, "status": {"type": "string"}, "details": {"type": "string", "default": ""}}, "required": ["id", "status"]}},
+    {"name": "update_task", "description": "Update task status/details by id. Non-empty details replaces the existing details; append_details adds a new line to them instead. Pass one or the other, not both.",
+     "inputSchema": {"type": "object", "properties": {"id": {"type": "integer"}, "status": {"type": "string"}, "details": {"type": "string", "default": ""}, "append_details": {"type": "string", "default": ""}}, "required": ["id", "status"]}},
 ]
 
 
@@ -144,9 +144,39 @@ def do_search_knowledge(a):
     return {"query": q, "results": out[:max(lim, len(out))]}
 
 
+OPEN_TASK = "status NOT IN ('done','cancelled')"
+RESULT_LIMIT = 12000  # characters of JSON per tool response (see text_result)
+
+
 def read_proj_file(project, name):
     p = ROOT / "projects" / project / name
     return p.read_text(encoding="utf-8", errors="replace") if p.is_file() else ""
+
+
+def fit_state(result, key, project):
+    """Keep the newest part of state.md when the whole result would be truncated.
+
+    state.md is append-only (newest entries last), so text_result's head cut
+    would drop exactly the entries that matter most. Trim from the front at an
+    entry boundary instead and say so in the response.
+    """
+    full = result[key]
+    if len(json.dumps(result, indent=2)) <= RESULT_LIMIT:
+        return result
+    note = (f"[Older entries omitted to fit the response. "
+            f"Full history: projects/{project}/state.md in the data directory.]\n")
+    result.update({key: note, "state_truncated": True, "state_omitted_chars": len(full)})
+    room = RESULT_LIMIT - len(json.dumps(result, indent=2))
+    keep = full[-room:] if room > 0 else ""
+    while keep:
+        cut = keep.find("\n## ")
+        tail = keep[cut + 1:] if cut >= 0 else keep
+        result.update({key: note + tail, "state_omitted_chars": len(full) - len(tail)})
+        if len(json.dumps(result, indent=2)) <= RESULT_LIMIT:
+            return result
+        keep = tail[len(json.dumps(result, indent=2)) - RESULT_LIMIT:]
+    result.update({key: note, "state_omitted_chars": len(full)})
+    return result
 
 
 def do_get_project_context(a):
@@ -161,13 +191,14 @@ def do_get_project_context(a):
     research = [dict(r) for r in con.execute(
         "SELECT id,question,created_at FROM research WHERE project=? ORDER BY id DESC LIMIT 10", (project,))]
     tasks = [dict(r) for r in con.execute(
-        "SELECT id,title,owner,status,updated_at FROM tasks WHERE project=? AND status!='done' ORDER BY id DESC LIMIT 20", (project,))]
+        "SELECT id,title,owner,status,updated_at FROM tasks WHERE project=? AND " + OPEN_TASK + " ORDER BY id DESC LIMIT 20", (project,))]
     con.close()
-    return {"project": project, "registered": True,
-            "context": read_proj_file(project, "context.md"),
-            "architecture": read_proj_file(project, "architecture.md"),
-            "state": read_proj_file(project, "state.md"),
-            "recent_decisions": decisions, "recent_research": research, "open_tasks": tasks}
+    return fit_state({"project": project, "registered": True,
+                      "context": read_proj_file(project, "context.md"),
+                      "architecture": read_proj_file(project, "architecture.md"),
+                      "state": read_proj_file(project, "state.md"),
+                      "recent_decisions": decisions, "recent_research": research, "open_tasks": tasks},
+                     "state", project)
 
 
 def do_get_project_state(a):
@@ -175,10 +206,11 @@ def do_get_project_state(a):
     con = db()
     row = con.execute("SELECT * FROM project_state WHERE project=?", (project,)).fetchone()
     tasks = [dict(r) for r in con.execute(
-        "SELECT id,title,owner,status,updated_at FROM tasks WHERE project=? AND status!='done' ORDER BY id", (project,))]
+        "SELECT id,title,owner,status,updated_at FROM tasks WHERE project=? AND " + OPEN_TASK + " ORDER BY id", (project,))]
     con.close()
-    return {"project": project, "state_file": read_proj_file(project, "state.md"),
-            "db": dict(row) if row else None, "open_tasks": tasks}
+    return fit_state({"project": project, "state_file": read_proj_file(project, "state.md"),
+                      "db": dict(row) if row else None, "open_tasks": tasks},
+                     "state_file", project)
 
 
 def do_update_project_state(a):
@@ -194,9 +226,11 @@ def do_update_project_state(a):
     con = db()
     prev = con.execute("SELECT state FROM project_state WHERE project=?", (project,)).fetchone()
     full = ((prev["state"] + "\n" if prev else "") + f"[{now()}] {entry}")[-8000:]
+    # An omitted (or empty) status keeps the stored one rather than clearing it.
     con.execute("INSERT INTO project_state(project,status,state,updated_at) VALUES(?,?,?,?) "
-                "ON CONFLICT(project) DO UPDATE SET status=excluded.status,state=excluded.state,updated_at=excluded.updated_at",
-                (project, status or (prev and "" or ""), full, now()))
+                "ON CONFLICT(project) DO UPDATE SET status=COALESCE(NULLIF(excluded.status,''),project_state.status),"
+                "state=excluded.state,updated_at=excluded.updated_at",
+                (project, status or "", full, now()))
     con.commit()
     con.close()
     return {"project": project, "path": str(sp.relative_to(ROOT)), "ok": True}
@@ -304,9 +338,17 @@ def do_record_task(a):
 
 
 def do_update_task(a):
+    details, extra = a.get("details", "") or "", a.get("append_details", "") or ""
+    if details and extra:
+        raise ValueError("pass details (replace) or append_details (append), not both")
     con = db()
-    con.execute("UPDATE tasks SET status=?, details=COALESCE(NULLIF(?,''),details), updated_at=? WHERE id=?",
-                (a["status"], a.get("details", ""), now(), a["id"]))
+    if extra:
+        con.execute("UPDATE tasks SET status=?, details=CASE WHEN COALESCE(details,'')='' THEN ? "
+                    "ELSE details || char(10) || ? END, updated_at=? WHERE id=?",
+                    (a["status"], extra, extra, now(), a["id"]))
+    else:
+        con.execute("UPDATE tasks SET status=?, details=COALESCE(NULLIF(?,''),details), updated_at=? WHERE id=?",
+                    (a["status"], details, now(), a["id"]))
     con.commit()
     row = con.execute("SELECT * FROM tasks WHERE id=?", (a["id"],)).fetchone()
     con.close()
@@ -323,7 +365,7 @@ HANDLERS = {"search_knowledge": do_search_knowledge, "get_project_context": do_g
 
 
 def text_result(data):
-    return {"content": [{"type": "text", "text": json.dumps(data, indent=2)[:12000]}]}
+    return {"content": [{"type": "text", "text": json.dumps(data, indent=2)[:RESULT_LIMIT]}]}
 
 
 def handle(req):
