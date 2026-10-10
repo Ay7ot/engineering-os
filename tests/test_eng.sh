@@ -33,6 +33,9 @@ echo "test_eng: health (isolated data dir)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 export ENGINEERING_OS_DATA="$TMP/data"
+# Hermetic: health also inspects Claude Code config under $HOME.
+export HOME="$TMP/home"
+unset CLAUDE_CONFIG_DIR
 out="$("$ENG" health 2>&1 || true)"
 expect_contains "health reports engine path" "Engine:" "$out"
 expect_contains "health reports data path" "Data:" "$out"

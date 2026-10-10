@@ -285,16 +285,18 @@ engine feeds both tools and both share the same memory:
 
 | EngineeringOS | Claude Code |
 |---|---|
-| `opencode/agents/*.md` (subagents) | `~/.claude/agents/*.md`. `permission:` becomes `disallowedTools` plus a `PreToolUse` hook (`claude/hooks/eos_guard.py`) that enforces bash/edit allowlists, so read-only agents stay read-only. Models: architect/reviewer/security → opus, explorer → haiku, others → sonnet |
-| `opencode/agents/lead.md` (primary) | A managed block in `~/.claude/CLAUDE.md` that imports `PRINCIPLES.md` and `USER.md` and carries the Lead role. Your own CLAUDE.md content is kept |
+| `opencode/agents/*.md` (subagents) | `~/.claude/agents/*.md`. `permission:` becomes `disallowedTools` plus a `PreToolUse` hook (`claude/hooks/eos_guard.py`) that enforces bash/edit allowlists, so read-only agents stay read-only. Translation fails closed: only an exact `allow` grants a capability (`ask` becomes deny). The guard also keeps git read-only for allowlisted agents (no push/reset/branch -D/--output, even under `git *`) and blocks edits to Claude Code config. Models: architect/reviewer/security → opus, explorer → haiku, others → sonnet |
+| `opencode/agents/lead.md` (primary) | The **EngineeringOS Lead** output style (`~/.claude/output-styles/eos-lead.md`, keeps Claude Code's coding instructions), set as the default `outputStyle` in `~/.claude/settings.json` unless you already chose another style. Switch per session in the app or with `/output-style` |
+| always-on context | A managed block in `~/.claude/CLAUDE.md` importing `PRINCIPLES.md` and `USER.md`, plus the memory and `AGENTS.md` rules. Your own CLAUDE.md content is kept |
 | `opencode/skills/` | `~/.claude/skills/` |
 | `opencode/commands/` | `~/.claude/commands/` |
-| `engineering-memory` MCP | user-scope `mcpServers` entry in `~/.claude.json` (backup written to `~/.claude.json.engineeringos.bak`) |
+| `engineering-memory` MCP | user-scope server, registered with `claude mcp add-json` when the CLI is on PATH; otherwise merged into `~/.claude.json` (backup at `~/.claude.json.engineeringos.bak`; restart Claude Code and re-run `eng health` if it was open) |
 
 Names that collide with Claude Code built-ins get an `eos-` prefix:
 `/eos-review`, `/eos-debug`, and the `eos-code-review` / `eos-security-review`
 skills. Generated files are tracked in `~/.claude/.engineeringos-manifest.json`;
-re-syncing prunes files it no longer produces and never touches your own.
+re-syncing prunes files it no longer produces. A file it did not write is never
+overwritten: sync prints `SKIPPED` and leaves it alone.
 Respects `CLAUDE_CONFIG_DIR`. Edit the sources under `opencode/`, never the
 generated files, then re-run `eng sync-claude` and restart Claude Code.
 
@@ -384,7 +386,8 @@ through [SECURITY.md](SECURITY.md), never a public issue.
 # Remove the engine sync (agents, skills, commands, MCP config) then delete the repos.
 rm -rf ~/.config/opencode/agents ~/.config/opencode/skills ~/.config/opencode/commands
 # Claude Code: delete the files listed in ~/.claude/.engineeringos-manifest.json, the
-# EngineeringOS block in ~/.claude/CLAUDE.md, and mcpServers."engineering-memory" in ~/.claude.json.
+# EngineeringOS block in ~/.claude/CLAUDE.md, "outputStyle" in ~/.claude/settings.json,
+# and mcpServers."engineering-memory" in ~/.claude.json.
 # Edit ~/.config/opencode/opencode.jsonc and remove the "engineering-memory" mcp entry.
 rm -rf ~/EngineeringOS
 ```

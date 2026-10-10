@@ -32,12 +32,18 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home"
 unset CLAUDE_CONFIG_DIR
+# Hermetic: never pick up a real `claude` CLI from PATH.
+export PATH="$TMP/bin:$PATH"; mkdir -p "$TMP/bin"
+printf '#!/bin/sh\nexit 127\n' > "$TMP/bin/claude"; chmod +x "$TMP/bin/claude"
 export ENGINEERING_OS_DATA="$TMP/data"
 C="$HOME/.claude"
 mkdir -p "$C/agents"
 printf '{"numStartups": 3, "mcpServers": {"other": {"command": "x"}}}\n' > "$HOME/.claude.json"
 printf '# my prefs\nbe terse\n' > "$C/CLAUDE.md"
 printf -- '---\nname: mine\ndescription: user agent\n---\nkeep me\n' > "$C/agents/mine.md"
+# A user-owned file at a path sync would generate must survive.
+mkdir -p "$C/skills/testing"
+printf -- '---\nname: testing\ndescription: my own\n---\nmine\n' > "$C/skills/testing/SKILL.md"
 
 echo "test_claude_sync: syntax"
 if python3 -m py_compile "$REPO_ROOT/scripts/claude_sync.py" "$GUARD"; then ok "python compiles"; else no "python compiles"; fi
@@ -46,6 +52,9 @@ echo "test_claude_sync: first sync"
 out="$("$ENG" sync-claude 2>&1 || true)"
 expect_contains "sync reports agents" "8 agents" "$out"
 expect_contains "sync configures MCP" "configured engineering-memory MCP" "$out"
+expect_contains "sync reports skipped user file" "SKIPPED $C/skills/testing/SKILL.md" "$out"
+expect_contains "user skill not clobbered" "mine" "$(cat "$C/skills/testing/SKILL.md")"
+expect_contains "sets default output style" "set default outputStyle" "$out"
 
 for a in architect builder explorer planner researcher reviewer security tester; do
   expect_file "agent $a generated" "$C/agents/$a.md"
@@ -83,7 +92,16 @@ expect_missing "command drops opencode agent key" "agent: lead" "$feature"
 md="$(cat "$C/CLAUDE.md")"
 expect_contains "CLAUDE.md keeps user content" "be terse" "$md"
 expect_contains "CLAUDE.md imports principles" "@$REPO_ROOT/PRINCIPLES.md" "$md"
-expect_contains "CLAUDE.md carries lead role" "Lead Agent of EngineeringOS" "$md"
+expect_missing "CLAUDE.md no longer carries lead role" "Lead Agent of EngineeringOS" "$md"
+expect_contains "CLAUDE.md points at the style" "EngineeringOS Lead" "$md"
+
+style="$(cat "$C/output-styles/eos-lead.md")"
+expect_contains "style named" 'name: "EngineeringOS Lead"' "$style"
+expect_contains "style keeps coding instructions" "keep-coding-instructions: true" "$style"
+expect_contains "style carries lead role" "Lead Agent of EngineeringOS" "$style"
+expect_contains "style lists subagents" '`explorer`' "$style"
+expect_contains "settings default style" '"outputStyle": "EngineeringOS Lead"' "$(cat "$C/settings.json")"
+expect_contains "architect edit guard protects claude dir" "--protect $C" "$architect"
 
 cj="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); m=d["mcpServers"]; print(d["numStartups"], "other" in m, m["engineering-memory"]["env"]["ENGINEERING_OS_DATA"])' "$HOME/.claude.json")"
 expect_contains ".claude.json preserves keys and sets data dir" "3 True $TMP/data" "$cj"
@@ -95,6 +113,39 @@ expect_contains "second sync changes nothing" "(0 files changed)" "$out"
 expect_contains "second sync leaves MCP" "already configured" "$out"
 blocks="$(grep -c 'BEGIN EngineeringOS' "$C/CLAUDE.md")"
 if [ "$blocks" = "1" ]; then ok "single managed block"; else no "single managed block (got $blocks)"; fi
+
+echo "test_claude_sync: existing outputStyle is respected"
+printf '{"outputStyle": "Concise", "theme": "dark"}\n' > "$C/settings.json"
+out="$("$ENG" sync-claude 2>&1 || true)"
+expect_contains "user style left in place" "left your outputStyle 'Concise'" "$out"
+expect_contains "settings untouched" '"Concise"' "$(cat "$C/settings.json")"
+printf '{"theme": "dark"}\n' > "$C/settings.json"
+"$ENG" sync-claude >/dev/null 2>&1 || true
+st="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["theme"], d["outputStyle"])' "$C/settings.json")"
+expect_contains "settings merge keeps other keys" "dark EngineeringOS Lead" "$st"
+
+echo "test_claude_sync: MCP via claude CLI when present"
+rm -f "$HOME/.claude.json"
+printf '#!/bin/sh\necho "$@" >> "%s/cli.log"\nexit 0\n' "$TMP" > "$TMP/fakeclaude"; chmod +x "$TMP/fakeclaude"
+out="$(python3 "$REPO_ROOT/scripts/claude_sync.py" sync --engine "$REPO_ROOT" --data "$TMP/data" --claude-cli "$TMP/fakeclaude" 2>&1 || true)"
+expect_contains "uses claude mcp add-json" "via \`claude mcp add-json\`" "$out"
+expect_contains "CLI called with user scope" "mcp add-json --scope user engineering-memory" "$(cat "$TMP/cli.log")"
+expect_nofile "CLI path does not hand-edit .claude.json" "$HOME/.claude.json"
+"$ENG" sync-claude >/dev/null 2>&1 || true
+
+echo "test_claude_sync: permission translation fails closed"
+python3 - "$REPO_ROOT" <<'PY' && ok "ask/unknown/commented values deny" || no "ask/unknown/commented values deny"
+import sys; sys.path.insert(0, sys.argv[1] + "/scripts")
+import claude_sync as cs
+fm, _ = cs.split_frontmatter("---\npermission:\n  edit: ask\n  bash: deny  # read-only\n  webfetch: maybe\n---\nbody\n")
+dis, hooks = cs.translate_permissions(fm["permission"], "py", "g")
+assert {"Edit", "Write", "NotebookEdit", "Bash", "WebFetch"} <= set(dis), dis
+assert not hooks, hooks
+fm, _ = cs.split_frontmatter("---\r\npermission:\r\n  edit: deny\r\n---\r\nbody\r\n")
+assert "Edit" in cs.translate_permissions(fm["permission"], "py", "g")[0], "CRLF"
+assert "eos-code-review" in cs.rename_refs("see ~/.claude/skills/code-review/SKILL.md")
+assert "opencode/skills/code-review" in cs.rename_refs("opencode/skills/code-review")
+PY
 
 echo "test_claude_sync: stale managed files removed, user files kept"
 python3 - "$C/.engineeringos-manifest.json" "$C/agents/ghost.md" <<'PY'
@@ -129,6 +180,21 @@ B=(bash --allow 'git log *' --allow 'git status *')
 [ "$(guard '{"tool_input":{"command":"ls"}}' bash --deny 'git push *')" = 0 ] && ok "deny-only allows others" || no "deny-only allows others"
 [ "$(guard '{"tool_input":{"file_path":"/x/docs/adr.md"}}' edit --allow '*.md')" = 0 ] && ok "markdown edit allowed" || no "markdown edit allowed"
 [ "$(guard '{"tool_input":{"file_path":"/x/src/app.ts"}}' edit --allow '*.md')" = 2 ] && ok "code edit blocked" || no "code edit blocked"
+[ "$(guard '{"tool_input":{"file_path":"/p/agents/explorer.md"}}' edit --allow '*.md' --protect /p)" = 2 ] && ok "protected dir edit blocked" || no "protected dir edit blocked"
+[ "$(guard 'null' "${B[@]}")" = 2 ] && ok "non-object input fails closed" || no "non-object input fails closed"
+[ "$(guard '{"tool_input":"x"}' "${B[@]}")" = 2 ] && ok "bad tool_input fails closed" || no "bad tool_input fails closed"
+[ "$(guard '{"tool_input":{"command":"git log"}}' bogus)" = 2 ] && ok "misconfigured guard fails closed" || no "misconfigured guard fails closed"
+[ "$(guard '{"tool_input":{"command":"git log --output=/tmp/x"}}' "${B[@]}")" = 2 ] && ok "git log --output blocked" || no "git log --output blocked"
+R=(bash --allow 'git branch *' --allow 'git remote *' --allow 'git *')
+[ "$(guard '{"tool_input":{"command":"git branch -a"}}' "${R[@]}")" = 0 ] && ok "git branch -a allowed" || no "git branch -a allowed"
+[ "$(guard '{"tool_input":{"command":"git branch -D main"}}' "${R[@]}")" = 2 ] && ok "git branch -D blocked" || no "git branch -D blocked"
+[ "$(guard '{"tool_input":{"command":"git branch newb"}}' "${R[@]}")" = 2 ] && ok "git branch create blocked" || no "git branch create blocked"
+[ "$(guard '{"tool_input":{"command":"git remote -v"}}' "${R[@]}")" = 0 ] && ok "git remote -v allowed" || no "git remote -v allowed"
+[ "$(guard '{"tool_input":{"command":"git remote set-url origin x"}}' "${R[@]}")" = 2 ] && ok "git remote set-url blocked" || no "git remote set-url blocked"
+[ "$(guard '{"tool_input":{"command":"git push origin main"}}' "${R[@]}")" = 2 ] && ok "git push blocked under git *" || no "git push blocked under git *"
+[ "$(guard '{"tool_input":{"command":"git reset --hard"}}' "${R[@]}")" = 2 ] && ok "git reset blocked under git *" || no "git reset blocked under git *"
+[ "$(guard '{"tool_input":{"command":"git -c alias.x=!sh x"}}' "${R[@]}")" = 2 ] && ok "git -c blocked" || no "git -c blocked"
+[ "$(guard '{"tool_input":{"command":"git show HEAD"}}' "${R[@]}")" = 0 ] && ok "git show allowed under git *" || no "git show allowed under git *"
 
 echo
 echo "test_claude_sync: $pass passed, $fail failed"
