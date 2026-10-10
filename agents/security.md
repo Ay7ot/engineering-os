@@ -18,6 +18,12 @@ permissions:
     "pip-audit *": allow
     "gitleaks *": allow
     "trufflehog *": allow
+    "git diff *--output*": deny
+    "git diff *--ext-diff*": deny
+    "git log *--output*": deny
+    "git log *--ext-diff*": deny
+    "git show *--output*": deny
+    "git show *--ext-diff*": deny
   glob: allow
   grep: allow
   list: allow

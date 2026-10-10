@@ -11,9 +11,22 @@ permissions:
     "git status *": allow
     "git rev-parse *": allow
     "git log *": allow
-    "git branch *": allow
-    "git remote *": allow
     "git ls-files *": allow
+    "git branch": allow
+    "git branch -a": allow
+    "git branch -r": allow
+    "git branch -v": allow
+    "git branch -vv": allow
+    "git branch --show-current": allow
+    "git branch --list *": allow
+    "git branch --contains *": allow
+    "git branch --merged *": allow
+    "git branch --no-merged *": allow
+    "git remote": allow
+    "git remote -v": allow
+    "git remote get-url *": allow
+    "git log *--output*": deny
+    "git log *--ext-diff*": deny
   glob: allow
   grep: allow
   list: allow
@@ -61,4 +74,4 @@ You are the Explorer Agent of EngineeringOS. You inspect repositories AND non-gi
 - Cite file paths. Be accurate about what you did NOT verify.
 - If something is ambiguous, report it as unresolved rather than guessing.
 - Never emit git "fatal:" messages as errors. A non-git workspace is a first-class input, not a failure.
-- TOOL RESTRICTIONS (by design): `bash` is allowed ONLY for the git read-only commands in your permission block (`status`, `rev-parse`, `log`, `branch`, `remote`, `ls-files`). NEVER use bash for ls/cat/find/grep/npm/etc — those calls WILL fail. Use `glob` / `read` / `grep` / `list` for all file exploration instead.
+- TOOL RESTRICTIONS (by design): `bash` is allowed ONLY for the git read-only commands in your permission block (`status`, `rev-parse`, `log`, `ls-files`, listing forms of `branch` such as `git branch -a` / `git branch --list <pattern>`, and `git remote -v` / `git remote get-url <name>`). Anything that changes branches, remotes, or writes files (e.g. `git branch -D`, `git remote set-url`, `git log --output`) is denied. NEVER use bash for ls/cat/find/grep/npm/etc — those calls WILL fail. Use `glob` / `read` / `grep` / `list` for all file exploration instead.

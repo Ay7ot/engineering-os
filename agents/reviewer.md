@@ -12,7 +12,22 @@ permissions:
     "git status *": allow
     "git log *": allow
     "git show *": allow
-    "git branch *": allow
+    "git branch": allow
+    "git branch -a": allow
+    "git branch -r": allow
+    "git branch -v": allow
+    "git branch -vv": allow
+    "git branch --show-current": allow
+    "git branch --list *": allow
+    "git branch --contains *": allow
+    "git branch --merged *": allow
+    "git branch --no-merged *": allow
+    "git diff *--output*": deny
+    "git diff *--ext-diff*": deny
+    "git log *--output*": deny
+    "git log *--ext-diff*": deny
+    "git show *--output*": deny
+    "git show *--ext-diff*": deny
   glob: allow
   grep: allow
   list: allow

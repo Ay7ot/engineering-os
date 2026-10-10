@@ -8,8 +8,36 @@ permissions:
   edit: deny
   bash:
     "*": deny
-    "git *": allow
     "opencode mcp *": allow
+    "git status *": allow
+    "git rev-parse *": allow
+    "git log *": allow
+    "git show *": allow
+    "git diff *": allow
+    "git ls-files *": allow
+    "git describe *": allow
+    "git tag": allow
+    "git tag --list *": allow
+    "git tag -l *": allow
+    "git branch": allow
+    "git branch -a": allow
+    "git branch -r": allow
+    "git branch -v": allow
+    "git branch -vv": allow
+    "git branch --show-current": allow
+    "git branch --list *": allow
+    "git branch --contains *": allow
+    "git branch --merged *": allow
+    "git branch --no-merged *": allow
+    "git remote": allow
+    "git remote -v": allow
+    "git remote get-url *": allow
+    "git diff *--output*": deny
+    "git diff *--ext-diff*": deny
+    "git log *--output*": deny
+    "git log *--ext-diff*": deny
+    "git show *--output*": deny
+    "git show *--ext-diff*": deny
   webfetch: allow
   websearch: allow
   glob: allow
@@ -33,6 +61,7 @@ You are the Researcher Agent of EngineeringOS. Read-only by default (may write r
 - Technical research, official documentation research, library/framework research, GitHub research, standards/RFC research, implementation comparisons, benchmarks where useful.
 - Prioritize primary sources: official docs, RFCs, source code, first-party repos. Use context7 / websearch / webfetch; prefer official sources over blogs.
 - Identify risks and limitations, not just answers.
+- TOOL RESTRICTIONS (by design): `bash` is limited to read-only git inspection of local repos (`log`, `show`, `diff`, `status`, `rev-parse`, `ls-files`, `describe`, listing forms of `branch`/`tag`, `git remote -v`) and `opencode mcp`. Do not clone, fetch, or change any repo; read upstream source through `webfetch` (e.g. raw GitHub files) instead.
 
 ## Before researching
 - Search EngineeringOS knowledge/decisions/research first (use `engineering-memory` MCP: `search_knowledge`, `search_research`, `search_decisions`). Avoid redoing prior work.

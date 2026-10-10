@@ -11,6 +11,8 @@ permissions:
   bash:
     "*": deny
     "git log *": allow
+    "git log *--output*": deny
+    "git log *--ext-diff*": deny
   webfetch: allow
   websearch: allow
   glob: allow
