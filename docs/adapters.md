@@ -83,7 +83,10 @@ tool-name mapping note.
 - **Stdlib only.** No `pip install`.
 - **Collisions.** If generated names collide with the editor's built-ins, rename
   inside the adapter (see `SKILL_RENAMES` in the Claude adapter) and rewrite
-  references.
+  references. Hyphenated names (`code-review`) are rewritten wherever they
+  appear; one-word names (`simplify`, `dataviz`) only when written in backticks,
+  so ordinary prose is untouched. Sources must therefore reference skills in
+  backticks; `tests/test_adapters.py` flags un-backticked mentions.
 
 ### Candidate next adapters (not implemented)
 

@@ -219,29 +219,33 @@ substantial cost. Everything else is inferred autonomously.
 ## The skills
 
 Skills are playbooks loaded by agents when a task matches. They are plain
-markdown, easy to read and copy. In Claude Code, `code-review` and
-`security-review` are installed as `eos-code-review` and `eos-security-review`
-so they do not shadow Claude Code's built-in skills.
+markdown, easy to read and copy. In Claude Code, `code-review`,
+`security-review`, `simplify` and `dataviz` are installed with an `eos-` prefix
+(`eos-code-review`, ...) so they do not shadow Claude Code's own skills.
 
 | Skill | Use when |
 |---|---|
 | `api-design` | Designing HTTP/REST, GraphQL, RPC, or internal APIs |
 | `architecture-analysis` | Analyzing or proposing a system, component, or significant change |
 | `backend-architecture` | Planning or reviewing backend services |
-| `code-review` | Reviewing a diff, branch, PR, or file adversarially |
+| `code-review` | Reviewing a diff, branch, PR, or file adversarially, in separate passes (intent, line by line, removed behaviour, callers, security, data, compatibility, failure handling, duplication, weight, root cause vs patch, project rules, tests) |
 | `database-design` | Designing schemas, migrations, or data access |
+| `dataviz` | Building charts, stat tiles or dashboards that read well in light and dark themes |
 | `debugging` | Investigating a reported bug |
 | `diagrams` | Authoring Mermaid diagrams for docs, plans, architecture |
 | `documentation` | Writing README, AGENTS.md, ADRs, runbooks |
 | `frontend-architecture` | Planning or reviewing frontend work |
 | `git-workflow` | Any git operation: worktrees, branches, commits |
+| `memory-hygiene` | Auditing and tidying EngineeringOS memory: duplicate or superseded ADRs, stale state, dead tasks |
 | `observability` | Adding logging, metrics, tracing, alerting |
 | `payments` | Building or reviewing billing and payment flows |
 | `project-planning` | Turning approved architecture into tasks |
 | `repository-exploration` | Mapping an unfamiliar repository |
 | `security-review` | Reviewing auth, payments, data, webhooks, secrets, infra |
-| `technical-research` | Investigating unfamiliar technology or comparing options |
-| `testing` | Writing tests or verifying acceptance criteria |
+| `simplify` | Cleaning up a working change before review: reuse, less complexity, less wasted work |
+| `skill-authoring` | Writing or fixing a skill so it triggers at the right moment |
+| `technical-research` | Investigating unfamiliar technology or comparing options, cross-checked and cited |
+| `testing` | Writing tests, verifying acceptance criteria, and running the real app to confirm a change |
 
 ---
 

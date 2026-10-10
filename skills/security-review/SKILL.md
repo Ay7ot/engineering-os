@@ -39,3 +39,12 @@ For each finding: **Severity** (critical / high / medium / low / info), **Locati
 - Impact: cross-tenant IDOR — any authenticated user can create charges in another org.
 - Exploitation likelihood: trivial with a modified request.
 - Remediation: derive `org_id` from the authenticated session and verify membership server-side.
+
+## Checklist
+- [ ] Authentication and authorization (incl. tenant isolation, IDOR) checked
+- [ ] Input validation and injection classes checked
+- [ ] Secrets, logging and sensitive data exposure checked
+- [ ] Webhooks, races and idempotency checked
+- [ ] Dependencies and infrastructure exposure checked
+- [ ] Each finding has evidence, impact, likelihood and remediation
+- [ ] Verdict given; approval-gate items flagged

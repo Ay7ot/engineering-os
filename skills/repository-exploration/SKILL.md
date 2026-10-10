@@ -1,6 +1,6 @@
 ---
 name: repository-exploration
-description: Map an unfamiliar repository quickly: stack, structure, data flow, key files, conventions, tests, integration points. Produce a concise map, not a source dump.
+description: Map an unfamiliar repository quickly: stack, structure, data flow, key files, conventions, tests, integration points. Produce a concise map, not a source dump. Use when starting work in a repo or area you have not mapped yet.
 metadata:
   audience: explorer, lead
 ---

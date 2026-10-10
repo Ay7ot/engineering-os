@@ -86,11 +86,18 @@ only (no lists); the loader rejects anything else with `file:line`.
   `targets.<editor>` (e.g. `targets.opencode.temperature`). Keep read-only
   agents read-only: deny `edit`, and deny `bash` except an explicit list of
   read-only commands, with the `"*"` default first and no git wildcards. Do not
-  give an agent a tool its job does not require. If you change an agent's
-  permissions, update the golden fixtures in `tests/fixtures/opencode-v1/` in
-  the same PR so the change is visible in review.
+  give an agent a tool its job does not require. If you change an agent
+  (permissions or body), declare the change in `FIXTURE_DELTAS` in
+  `tests/test_adapters.py` in the same PR. The fixtures in
+  `tests/fixtures/opencode-v1/` stay frozen, so every change since the
+  migration is visible in one place.
 - **Skill** → `skills/<name>/SKILL.md` with `name` (= directory) and
-  `description`. One skill, one playbook.
+  `description`. One skill, one playbook. Follow `skills/skill-authoring`: the
+  description must say when to use it ("Use when ..."), and the body needs
+  `## When to use` and `## Checklist` and must stay editor-neutral.
+  `tests/test_adapters.py` enforces this. Refer to other skills in backticks
+  (`` `simplify` ``). If the name collides with an editor's built-in skill, add a
+  rename in that editor's adapter.
 - **Command** → `commands/<name>.md` with `description`, plus e.g.
   `targets.opencode.agent`. Use `$ARGUMENTS` for user input.
 - **Editor** → `adapters/<editor>/adapter.py`; see `docs/adapters.md`. If you
