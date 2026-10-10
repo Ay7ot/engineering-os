@@ -160,7 +160,7 @@ plus a line in the registry, tests, and docs.
 | Permission rule order changes meaning | Emitter preserves key order; golden test compares ordered maps |
 | Numbers/booleans emitted as strings (`temperature: "0.1"`) | Emitter writes numeric/boolean scalars unquoted; golden test parses with `typed=True`, so quoting drift fails it |
 | First OpenCode sync skips files written by the old sync | `adopt_legacy` when no manifest exists |
-| Guard path moves; Claude sessions already running keep the old hook path until restart (and a rollback to `main` points the other way) | Compatibility shim at `claude/hooks/eos_guard.py` forwards to the new guard and exits 2 if it is missing (fail closed). Remove after one release |
+| Guard path moves; Claude sessions already running keep the old hook path until restart (and a rollback to `main` points the other way) | Compatibility shim at `claude/hooks/eos_guard.py` forwarded to the new guard and exited 2 if it was missing (fail closed). Removed 2026-10-10 once no installed agent referenced the old path |
 | OpenCode v1 vs v2 MCP shape | Prefer the shape the config already uses; else the major from the first line of `opencode --version` (stdout or stderr, full x.y.z only); else keep an existing v1 entry; else v2. The choice and reason are logged; `eng health` warns on a shape/version mismatch. The stale v1 key is removed only if it points at our server |
 | Permission rule order differs per editor (OpenCode: last match wins) | Loader requires the `"*"` default to be the first rule; Claude guard checks deny rules before allows (never wider than OpenCode) |
 | Shared JSON config loses JSONC comments on write | The first `.engineeringos.bak` is kept forever (the user's original); trailing commas accepted |

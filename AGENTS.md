@@ -24,7 +24,6 @@ a separate data directory (`$ENGINEERING_OS_DATA`, default `~/EngineeringOS/data
 | `mcp/engineering-memory/server.py` | Stdlib-only MCP server over stdio |
 | `scripts/eng` | Bootstrap / health / sync / worktree / repo-protect CLI |
 | `adapters/claude/hooks/eos_guard.py` | PreToolUse guard enforcing agent bash/edit allowlists in Claude Code |
-| `claude/hooks/eos_guard.py` | Temporary shim at the old guard path for Claude sessions started before the move; fails closed. Remove after one release |
 | `tests/fixtures/opencode-v1/` | Frozen pre-migration OpenCode files; golden reference for the OpenCode adapter |
 | `tests/` | Hermetic tests. These are what CI runs |
 | `templates/` | Seed files copied into a fresh data directory |
