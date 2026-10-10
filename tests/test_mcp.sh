@@ -82,6 +82,119 @@ for f in context.md architecture.md state.md; do
   if [ -f "$TMP/data/projects/demo/$f" ]; then ok "project file created: $f"; else no "project file created: $f"; fi
 done
 
+# `tool_json <id>` reads rpc output on stdin and prints the decoded tool result
+# of the response with that id (or the raw response if it is an error).
+tool_json() {
+  python3 -c 'import json,sys
+for line in sys.stdin:
+    r = json.loads(line)
+    if r.get("id") == int(sys.argv[1]):
+        try:
+            print(json.dumps(json.loads(r["result"]["content"][0]["text"]) if "result" in r else r))
+        except ValueError:
+            print("{}")  # truncated/invalid payload: the check that follows fails' "$1"
+}
+call() { # $1 id, $2 tool, $3 arguments JSON
+  printf '{"jsonrpc":"2.0","id":%s,"method":"tools/call","params":{"name":"%s","arguments":%s}}\n' "$1" "$2" "$3"
+}
+check_py() { # $1 desc, $2 python expression over `d`, $3 JSON (not piped: counters must survive)
+  if python3 -c 'import json,sys; d=json.loads(sys.argv[2]); sys.exit(0 if eval(sys.argv[1]) else 1)' "$2" "$3" 2>/dev/null
+  then ok "$1"; else no "$1"; fi
+}
+
+echo "test_mcp: cancelled tasks are not open"
+mkdir -p "$TMP/data-tasks/projects/demo"
+in="$(
+  call 1 record_task '{"title":"Keep me","project":"demo"}'
+  call 2 record_task '{"title":"Cancel me","project":"demo"}'
+  call 3 record_task '{"title":"Finish me","project":"demo"}'
+  call 4 update_task '{"id":2,"status":"cancelled"}'
+  call 5 update_task '{"id":3,"status":"done"}'
+)"
+printf '%s\n' "$in" | ENGINEERING_OS_DATA="$TMP/data-tasks" python3 "$SERVER" >/dev/null
+for tool in get_project_context get_project_state get_active_tasks; do
+  key=open_tasks; [ "$tool" = get_active_tasks ] && key=tasks
+  j="$(call 9 "$tool" '{"project":"demo"}' | ENGINEERING_OS_DATA="$TMP/data-tasks" python3 "$SERVER" | tool_json 9)"
+  check_py "$tool lists only the open task" "[t['title'] for t in d['$key']] == ['Keep me']" "$j"
+done
+
+echo "test_mcp: update_task details (replace vs append)"
+out="$(
+  {
+    call 1 record_task '{"title":"T","project":"demo","details":"line one"}'
+    call 2 update_task '{"id":1,"status":"open","append_details":"line two"}'
+    call 3 update_task '{"id":1,"status":"done","append_details":"Closed: shipped"}'
+  } | ENGINEERING_OS_DATA="$TMP/data-append" python3 "$SERVER"
+)"
+j="$(printf '%s\n' "$out" | tool_json 3)"
+check_py "append_details appends on new lines" \
+  "d['task']['details'] == 'line one\nline two\nClosed: shipped' and d['task']['status'] == 'done'" "$j"
+out="$(
+  {
+    call 1 record_task '{"title":"Empty","project":"demo"}'
+    call 2 update_task '{"id":1,"status":"open","append_details":"first"}'
+    call 3 update_task '{"id":1,"status":"open","details":"replaced"}'
+    call 4 update_task '{"id":1,"status":"open"}'
+    call 5 update_task '{"id":1,"status":"open","details":"x","append_details":"y"}'
+  } | ENGINEERING_OS_DATA="$TMP/data-append2" python3 "$SERVER" 2>/dev/null
+)"
+j="$(printf '%s\n' "$out" | tool_json 2)"
+check_py "append_details on empty details adds no blank line" "d['task']['details'] == 'first'" "$j"
+j="$(printf '%s\n' "$out" | tool_json 3)"
+check_py "details still replaces (backward compatible)" "d['task']['details'] == 'replaced'" "$j"
+j="$(printf '%s\n' "$out" | tool_json 4)"
+check_py "no details keeps existing details" "d['task']['details'] == 'replaced'" "$j"
+j="$(printf '%s\n' "$out" | tool_json 5)"
+check_py "details + append_details together is rejected" "'error' in d" "$j"
+j="$(call 1 update_task '{"id":1,"status":"open"}' | ENGINEERING_OS_DATA="$TMP/data-append2" python3 "$SERVER" | tool_json 1)"
+check_py "rejected call changed nothing" "d['task']['details'] == 'replaced'" "$j"
+j="$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | ENGINEERING_OS_DATA="$TMP/data-append2" python3 "$SERVER")"
+check_py "update_task schema declares append_details" \
+    "'append_details' in [t for t in d['result']['tools'] if t['name']=='update_task'][0]['inputSchema']['properties']" "$j"
+
+echo "test_mcp: update_project_state keeps status when omitted"
+out="$(
+  {
+    call 1 update_project_state '{"project":"demo","state":"one","status":"active"}'
+    call 2 update_project_state '{"project":"demo","state":"two"}'
+    call 3 get_project_state '{"project":"demo"}'
+    call 4 update_project_state '{"project":"demo","state":"three","status":"paused"}'
+    call 5 get_project_state '{"project":"demo"}'
+  } | ENGINEERING_OS_DATA="$TMP/data-status" python3 "$SERVER"
+)"
+j="$(printf '%s\n' "$out" | tool_json 3)"
+check_py "omitted status keeps previous status" "d['db']['status'] == 'active' and 'two' in d['db']['state']" "$j"
+j="$(printf '%s\n' "$out" | tool_json 5)"
+check_py "explicit status still updates" "d['db']['status'] == 'paused'" "$j"
+call 1 update_project_state '{"project":"fresh","state":"hi"}' | ENGINEERING_OS_DATA="$TMP/data-status" python3 "$SERVER" >/dev/null
+j="$(call 1 get_project_state '{"project":"fresh"}' | ENGINEERING_OS_DATA="$TMP/data-status" python3 "$SERVER" | tool_json 1)"
+check_py "new project without status stores empty status" "d['db']['status'] == ''" "$j"
+
+echo "test_mcp: long state.md returns the newest entries"
+D="$TMP/data-long"
+mkdir -p "$D/projects/demo"
+python3 - "$D/projects/demo/state.md" <<'PY'
+import sys
+parts = ["# demo — State\n"]
+for i in range(400):
+    parts.append(f'\n## 2026-01-01T00:00:{i:03d} UTC\nentry {i:03d} "quoted" detail text padding padding padding\n')
+open(sys.argv[1], "w", encoding="utf-8").write("".join(parts))
+PY
+echo "# demo — Context" > "$D/projects/demo/context.md"
+for tool in get_project_state get_project_context; do
+  key=state_file; [ "$tool" = get_project_context ] && key=state
+  raw="$(call 1 "$tool" '{"project":"demo"}' | ENGINEERING_OS_DATA="$D" python3 "$SERVER")"
+  printf '%s\n' "$raw" | python3 -c 'import json,sys; t=json.loads(sys.stdin.readline())["result"]["content"][0]["text"]; json.loads(t); assert len(t) <= 12000' \
+    && ok "$tool: response is complete JSON within the limit" || no "$tool: response is complete JSON within the limit"
+  j="$(printf '%s\n' "$raw" | tool_json 1)"
+  check_py "$tool: newest entry kept, oldest dropped, flagged" \
+    "'entry 399' in d['$key'] and 'entry 000' not in d['$key'] and d['state_truncated'] is True and d['state_omitted_chars'] > 0" "$j"
+  check_py "$tool: cut lands on an entry boundary" \
+    "d['$key'].split(chr(10), 1)[1].startswith('## ')" "$j"
+done
+j="$(call 1 get_project_state '{"project":"demo"}' | ENGINEERING_OS_DATA="$TMP/data-status" python3 "$SERVER" | tool_json 1)"
+check_py "short state.md is returned untouched" "'state_truncated' not in d and d['state_file'].startswith('# demo')" "$j"
+
 # Unknown tool must return an error, not crash the process.
 out="$(
   {
