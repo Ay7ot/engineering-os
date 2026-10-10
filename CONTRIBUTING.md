@@ -24,6 +24,7 @@ repo tooling). No pip installs: the MCP server is stdlib only.
 git clone https://github.com/Ay7ot/engineering-os.git ~/EngineeringOS
 cd ~/EngineeringOS
 bash tests/test_eng.sh
+python3 tests/test_adapters.py
 bash tests/test_claude_sync.sh
 bash tests/test_mcp.sh
 ```
@@ -64,7 +65,8 @@ The `ci` workflow runs on every push and PR:
 | Bash syntax | `bash -n scripts/eng` |
 | Python syntax | `python3 -m py_compile mcp/engineering-memory/server.py` |
 | CLI tests | `bash tests/test_eng.sh` |
-| Claude Code sync tests | `bash tests/test_claude_sync.sh` |
+| Adapter tests | `python3 tests/test_adapters.py` |
+| Claude Code adapter tests | `bash tests/test_claude_sync.sh` |
 | MCP tests | `bash tests/test_mcp.sh` |
 | Ruleset guard | `python3 tests/test_ruleset.py` |
 
@@ -72,19 +74,23 @@ All of these are required to pass before a PR can merge.
 
 ## Adding an agent, skill, or command
 
-These are plain Markdown with YAML frontmatter, synced into `~/.config/opencode/`
-by `eng sync-opencode` and translated into `~/.claude/` by `eng sync-claude`.
-If you add a permission shape the translator does not handle, extend
-`scripts/claude_sync.py` and `tests/test_claude_sync.sh` in the same PR.
+These are plain Markdown with editor-neutral YAML frontmatter. Adapters render
+them for each editor (`eng sync`). Frontmatter supports nested maps and scalars
+only (no lists); the loader rejects anything else with `file:line`.
 
-- **Agent** → `opencode/agents/<name>.md`, with `description` and `mode`
-  (`primary` or `subagent`) and a `permission` block. Keep read-only agents
-  read-only: deny `edit`, and deny `bash` except the few read-only git commands
-  they need. Do not give an agent a tool its job does not require.
-- **Skill** → `opencode/skills/<name>/SKILL.md`, with `name` and `description`
-  frontmatter. One skill, one playbook.
-- **Command** → `opencode/commands/<name>.md`, with `description` and `agent`
-  frontmatter. Use `$ARGUMENTS` for user input.
+- **Agent** → `agents/<name>.md` with `name` (= file name), `description`,
+  `role` (`primary` or `subagent`), optional `model_tier` (`deep`, `standard`,
+  `fast`), a `permissions` map, and editor-only settings under
+  `targets.<editor>` (e.g. `targets.opencode.temperature`). Keep read-only
+  agents read-only: deny `edit`, and deny `bash` except the few read-only git
+  commands they need. Do not give an agent a tool its job does not require.
+- **Skill** → `skills/<name>/SKILL.md` with `name` (= directory) and
+  `description`. One skill, one playbook.
+- **Command** → `commands/<name>.md` with `description`, plus e.g.
+  `targets.opencode.agent`. Use `$ARGUMENTS` for user input.
+- **Editor** → `adapters/<editor>/adapter.py`; see `docs/adapters.md`. If you
+  add a permission shape an adapter does not handle, extend the adapter and its
+  tests in the same PR.
 
 Update the tables in `README.md` when you add or rename any of these.
 

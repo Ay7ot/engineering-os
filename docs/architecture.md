@@ -6,7 +6,7 @@
 ## Purpose
 
 EngineeringOS is a persistent, local-first **context, memory, and state layer**
-shared by AI coding agents across projects. Coding tools (OpenCode, Codex, etc.)
+shared by AI coding agents across projects. Coding tools (OpenCode, Claude Code, Codex, etc.)
 are interchangeable execution surfaces; EngineeringOS is the system of record.
 
 ## Components
@@ -15,11 +15,12 @@ are interchangeable execution surfaces; EngineeringOS is the system of record.
 |---|---|---|
 | Principles | `PRINCIPLES.md` | Global engineering rules agents must follow |
 | Operator profile | `<data>/USER.md` | Who the operator is, how they work, approval gates |
-| Agent definitions | `opencode/agents/*.md` | Specialized subagents (lead, architect, builder, …) |
-| Skills | `opencode/skills/*/SKILL.md` | Reusable task playbooks |
-| Commands | `opencode/commands/*.md` | Slash-command workflows |
+| Agent definitions | `agents/*.md` | Editor-neutral specialized agents (lead, architect, builder, …) |
+| Skills | `skills/*/SKILL.md` | Reusable task playbooks |
+| Commands | `commands/*.md` | Slash-command workflows |
+| Editor adapters | `adapters/<editor>/` | Render the neutral source into each editor and register MCP (OpenCode, Claude Code) |
 | Memory MCP server | `mcp/engineering-memory/server.py` | Exposes data + SQLite/FTS5 over MCP stdio |
-| CLI | `scripts/eng` | Idempotent setup, health, OpenCode sync, git worktrees, repo protection |
+| CLI | `scripts/eng` + `scripts/eos_sync.py` | Idempotent setup, health, per-editor sync, git worktrees, repo protection |
 | Tests | `tests/` | Hermetic CLI, MCP, and ruleset tests; run by CI |
 | Templates | `templates/` | Seed files for a new data directory |
 | CI | `.github/workflows/ci.yml` | Syntax checks, tests, ruleset guard |

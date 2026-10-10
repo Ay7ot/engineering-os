@@ -17,7 +17,8 @@ The public engine repository:
 
 - `scripts/eng` — the bootstrap/health/worktree CLI
 - `mcp/engineering-memory/server.py` — the stdio MCP server
-- `opencode/` — agent, skill, and command definitions
+- `agents/`, `skills/`, `commands/`: editor-neutral agent, skill, and command definitions
+- `adapters/`: per-editor renderers, including the Claude Code permission guard hook
 - `.github/` — CI and repo configuration, including branch protection
 
 ## What is out of scope
@@ -35,8 +36,10 @@ The public engine repository:
 - The MCP server is **stdlib-only** and speaks newline-delimited JSON-RPC over
   stdio. It does not listen on a network port.
 - The data directory is the only coupling point, via `$ENGINEERING_OS_DATA`.
-  Nothing is ever written outside the engine, the data directory, and
-  `~/.config/opencode/`.
+  Nothing is ever written outside the engine, the data directory, and the
+  config locations of the editors you sync (`~/.config/opencode/`, `~/.claude/`,
+  `~/.claude.json`). Adapters only overwrite files they wrote (tracked in a
+  manifest) and back up shared JSON configs before changing them.
 - Privileged operations (production deploys, destructive migrations,
   irreversible data changes) require explicit human approval.
 

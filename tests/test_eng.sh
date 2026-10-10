@@ -35,7 +35,7 @@ trap 'rm -rf "$TMP"' EXIT
 export ENGINEERING_OS_DATA="$TMP/data"
 # Hermetic: health also inspects Claude Code config under $HOME.
 export HOME="$TMP/home"
-unset CLAUDE_CONFIG_DIR
+unset CLAUDE_CONFIG_DIR XDG_CONFIG_HOME
 out="$("$ENG" health 2>&1 || true)"
 expect_contains "health reports engine path" "Engine:" "$out"
 expect_contains "health reports data path" "Data:" "$out"
@@ -43,7 +43,7 @@ expect_contains "health MCP responds" "ok: engineering-memory MCP responds" "$ou
 # These lines come after the last possible early abort, so they catch truncation.
 expect_contains "health reaches default agent line" "Default agent:" "$out"
 expect_contains "health reaches commands line" "Commands synced:" "$out"
-if [ -f "$REPO_ROOT/opencode/commands/worktree.md" ]; then
+if [ -f "$REPO_ROOT/commands/worktree.md" ]; then
   ok "worktree command definition exists"
 else
   no "worktree command definition exists"

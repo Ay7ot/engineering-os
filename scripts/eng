@@ -4,7 +4,6 @@ set -euo pipefail
 
 ENGOS="${ENGINEERING_OS_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 DATA="${ENGINEERING_OS_DATA:-$ENGOS/data}"
-OC_CONFIG="$HOME/.config/opencode"
 PY="$(command -v python3 || true)"
 OC="$(command -v opencode || true)"
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
@@ -32,7 +31,7 @@ check_deps() {
 
 ensure_engos() {
   log "Ensuring engine at $ENGOS (public, no personal data) ..."
-  for d in mcp/engineering-memory claude/hooks opencode/agents opencode/skills opencode/commands scripts templates; do
+  for d in mcp/engineering-memory adapters agents skills commands scripts templates; do
     mkdir -p "$ENGOS/$d"
   done
   log "Ensuring data at $DATA (private; version-control this separately) ..."
@@ -57,92 +56,8 @@ setup_shell_alias() {
   fi
 }
 
-link_opencode() {
-  log "Syncing OpenCode config into $OC_CONFIG ..."
-  mkdir -p "$OC_CONFIG"/{agents,skills,commands}
-  # Agents: sync (do not remove user customizations; dedupe by name)
-  for f in "$ENGOS"/opencode/agents/*.md; do
-    [ -e "$f" ] || continue
-    cp "$f" "$OC_CONFIG/agents/$(basename "$f")"
-  done
-  # Commands: sync
-  for f in "$ENGOS"/opencode/commands/*.md; do
-    [ -e "$f" ] || continue
-    cp "$f" "$OC_CONFIG/commands/$(basename "$f")"
-  done
-  # Skills: copy each skill dir
-  for d in "$ENGOS"/opencode/skills/*/; do
-    [ -d "$d" ] || continue
-    cp -R "$d" "$OC_CONFIG/skills/$(basename "$d")"
-  done
-  log "  agents/commands/skills synced"
-}
-
-configure_mcp() {
-  local cfg="$OC_CONFIG/opencode.jsonc"
-  local entry="engineering-memory"
-  local py_abs
-  py_abs="$(command -v python3)"
-  if [ -f "$cfg" ]; then
-    "$PY" - "$cfg" "$entry" "$py_abs" "$ENGOS" "$DATA" <<'PYEOF'
-import json, sys, pathlib
-cfg_path, entry, py, root, data = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
-# Parse with jsonc tolerance: strip // and /* */ comments (outside strings)
-text = pathlib.Path(cfg_path).read_text(encoding="utf-8")
-def strip_comments(s):
-    out, i, n = [], 0, len(s); in_str=False
-    while i < n:
-        c = s[i]
-        if in_str:
-            out.append(c)
-            if c=='\\': i+=2; continue
-            if c=='"': in_str=False
-            i+=1; continue
-        if c=='"': in_str=True; out.append(c); i+=1; continue
-        if c=='/' and i+1<n and s[i+1]=='/':
-            while i<n and s[i]!='\n': i+=1
-            continue
-        if c=='/' and i+1<n and s[i+1]=='*':
-            i+=2
-            while i+1<n and not (s[i]=='*' and s[i+1]=='/'): i+=1
-            i+=2
-            continue
-        out.append(c); i+=1
-    return ''.join(out)
-data_cfg = json.loads(strip_comments(text))
-data_cfg.setdefault("mcp", {})[entry] = {
-    "type": "local",
-    "command": [py, root + "/mcp/engineering-memory/server.py"],
-    "environment": {"ENGINEERING_OS_DATA": data},
-    "timeout": 10000,
-}
-# Make the EngineeringOS Lead agent the default primary agent (do not clobber a user choice).
-data_cfg.setdefault("default_agent", "lead")
-pathlib.Path(cfg_path).write_text(json.dumps(data_cfg, indent=2) + "\n", encoding="utf-8")
-PYEOF
-    log "  configured engineering-memory MCP in opencode.jsonc (data=$DATA)"
-  else
-    cat > "$cfg" <<JSON
-{
-  "\$schema": "https://opencode.ai/config.json",
-  "default_agent": "lead",
-  "mcp": {
-    "$entry": {
-      "type": "local",
-      "command": ["$py_abs", "$ENGOS/mcp/engineering-memory/server.py"],
-      "environment": { "ENGINEERING_OS_DATA": "$DATA" },
-      "timeout": 10000
-    }
-  }
-}
-JSON
-    log "  created opencode.jsonc with engineering-memory MCP"
-  fi
-}
-
-sync_claude() {
-  log "Syncing Claude Code config into $CLAUDE_DIR ..."
-  "$PY" "$ENGOS/scripts/claude_sync.py" sync --engine "$ENGOS" --data "$DATA" --python "$PY"
+eos_sync() { # $1 action, $2 target
+  "$PY" "$ENGOS/scripts/eos_sync.py" "$1" --target "${2:-all}" --engine "$ENGOS" --data "$DATA" --python "$PY"
 }
 
 health_checks() {
@@ -156,27 +71,8 @@ health_checks() {
     log "    ok: engineering-memory MCP responds (tools/list)"
   fi
   log "  Memory DB: $([ -f "$DATA/memory/engineering_memory.db" ] && echo present || echo 'missing (auto-creates)')"
-  local ag="" co=""
-  for f in lead researcher explorer architect planner builder reviewer tester security; do
-    [ -f "$OC_CONFIG/agents/$f.md" ] && ag="$ag $f"
-  done
-  log "  Agents synced:$ag"
-  local def_agent
-  def_agent="$(grep -o '"default_agent"[[:space:]]*:[[:space:]]*"[^"]*"' "$OC_CONFIG/opencode.jsonc" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || true)"
-  log "  Default agent: ${def_agent:-(unset)}"
-  local co2=""
-  for f in init-project feature research debug review worktree; do
-    [ -f "$OC_CONFIG/commands/$f.md" ] && co2="$co2 $f"
-  done
-  log "  Commands synced:$co2"
-  log "  Skills dir: $([ -d "$OC_CONFIG/skills" ] && echo present || echo missing)"
-  if [ -n "$OC" ]; then
-    log "  OpenCode available: $OC"
-  fi
-  if has_claude; then
-    "$PY" "$ENGOS/scripts/claude_sync.py" health --engine "$ENGOS" --data "$DATA" --python "$PY" || log "  Claude: health check failed"
-  fi
-  log "  Note: restart opencode / Claude Code to load new agents/skills/commands/MCP."
+  eos_sync health all || log "  editor health check failed"
+  log "  Note: restart your editors to load new agents/skills/commands/MCP."
 }
 
 # --- worktree subcommand ---
@@ -499,13 +395,14 @@ PYEOF
 case "${1:-health}" in
   setup)
     check_deps; ensure_engos
-    if [ -n "$OC" ]; then link_opencode; configure_mcp; fi
-    if has_claude; then sync_claude; fi
+    eos_sync sync all
     setup_shell_alias; health_checks ;;
   health) health_checks ;;
-  sync-opencode) link_opencode; configure_mcp ;;
-  sync-claude) sync_claude ;;
+  sync) shift; eos_sync sync "${1:-all}" ;;
+  sync-opencode) eos_sync sync opencode ;;
+  sync-claude) eos_sync sync claude ;;
+  targets) eos_sync targets ;;
   worktree) shift; wt_main "$@";;
   repo-protect) shift; rp_main "$@";;
-  *) echo "usage: eng {setup|health|sync-opencode|sync-claude|worktree|repo-protect}" ;;
+  *) echo "usage: eng {setup|health|sync [all|<editor>]|sync-opencode|sync-claude|targets|worktree|repo-protect}" ;;
 esac
