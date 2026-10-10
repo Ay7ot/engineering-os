@@ -208,15 +208,9 @@ N=(bash --allow 'npm *' --deny 'npm publish *')
 [ "$(guard '{"tool_input":{"command":"npm test"}}' "${N[@]}")" = 0 ] && ok "allowlist still allows" || no "allowlist still allows"
 [ "$(guard '{"tool_input":{"file_path":"/x/.env"}}' edit --allow '*' --deny '.env' --deny '*.env')" = 2 ] && ok "edit deny glob blocks" || no "edit deny glob blocks"
 
-echo "test_claude_sync: legacy guard path shim (running sessions)"
-SHIM="$REPO_ROOT/claude/hooks/eos_guard.py"
-r="$(printf '{"tool_input":{"command":"git log -1"}}' | python3 "$SHIM" bash --allow 'git log *' >/dev/null 2>&1 && echo 0 || echo $?)"
-[ "$r" = 0 ] && ok "shim forwards allowed command" || no "shim forwards allowed command ($r)"
-r="$(printf '{"tool_input":{"command":"rm -rf x"}}' | python3 "$SHIM" bash --allow 'git log *' >/dev/null 2>&1 && echo 0 || echo $?)"
-[ "$r" = 2 ] && ok "shim blocks disallowed command" || no "shim blocks disallowed command ($r)"
-mkdir -p "$TMP/shimtest/claude/hooks"; cp "$SHIM" "$TMP/shimtest/claude/hooks/"
-r="$(printf '{"tool_input":{"command":"git log"}}' | python3 "$TMP/shimtest/claude/hooks/eos_guard.py" bash --allow 'git log *' >/dev/null 2>&1 && echo 0 || echo $?)"
-[ "$r" = 2 ] && ok "shim fails closed when real guard is missing" || no "shim fails closed when real guard is missing ($r)"
+echo "test_claude_sync: legacy guard shim removed"
+if [ ! -e "$REPO_ROOT/claude/hooks/eos_guard.py" ]; then ok "old guard path is gone"; else no "old guard path is gone"; fi
+expect_missing "agents never reference the old guard path" "EngineeringOS/claude/hooks" "$(cat "$C"/agents/*.md)"
 
 echo "test_claude_sync: health when Claude Code is not installed"
 out="$(HOME="$TMP/nohome" PATH="/usr/bin:/bin" python3 "$REPO_ROOT/scripts/eos_sync.py" health --target claude --engine "$REPO_ROOT" --data "$TMP/data" 2>&1 || true)"

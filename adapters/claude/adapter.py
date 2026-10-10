@@ -281,7 +281,7 @@ def sync(ctx, source):
     # Markdown-only editors (architect) must not rewrite agent definitions, the
     # adapters, or anything imported into every session (PRINCIPLES.md, data/).
     protect = [cdir, engine / "adapters", engine / "agents", engine / "skills", engine / "commands",
-               engine / "claude", engine / "PRINCIPLES.md", ctx.data]
+               engine / "PRINCIPLES.md", ctx.data]
     w = Writer(cdir, NAME)
     agents, commands = [], []
 
