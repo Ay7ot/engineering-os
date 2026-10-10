@@ -71,7 +71,8 @@ grepping the markdown.
 ## Quick start
 
 **Requirements:** `git`, `python3` 3.9+ (with the `sqlite3` module), `bash`, and
-[OpenCode](https://opencode.ai). `gh` is optional, only needed for the
+[OpenCode](https://opencode.ai) and/or [Claude Code](https://claude.com/claude-code)
+(CLI or desktop app). `eng setup` wires up whichever it finds. `gh` is optional, only needed for the
 `repo-protect` command.
 
 ```sh
@@ -263,6 +264,7 @@ One bash script, idempotent, no side effects on re-run.
 eng setup                            # bootstrap deps, data, config, MCP, health
 eng health                           # verify engine, data, MCP, agents, skills
 eng sync-opencode                    # re-sync agents/skills/commands + MCP config
+eng sync-claude                      # same, translated for Claude Code (see below)
 eng worktree new <name> [--type fix] # isolated worktree per feature/bug
 eng worktree list                    # show active and closed worktrees
 eng worktree close <name>            # remove it (refuses if dirty)
@@ -274,6 +276,27 @@ Worktrees use a sibling path (`../<repo>-<slug>-wt`), auto-detect the base
 branch, register themselves in `projects/<name>/worktrees.md`, and refuse to
 close over uncommitted changes unless you pass `--force`. One writer per
 worktree, never two.
+
+### Claude Code
+
+`eng sync-claude` (also run by `eng setup` when `~/.claude` or the `claude` CLI
+exists) generates Claude Code config from the same `opencode/` sources, so one
+engine feeds both tools and both share the same memory:
+
+| EngineeringOS | Claude Code |
+|---|---|
+| `opencode/agents/*.md` (subagents) | `~/.claude/agents/*.md`. `permission:` becomes `disallowedTools` plus a `PreToolUse` hook (`claude/hooks/eos_guard.py`) that enforces bash/edit allowlists, so read-only agents stay read-only. Models: architect/reviewer/security → opus, explorer → haiku, others → sonnet |
+| `opencode/agents/lead.md` (primary) | A managed block in `~/.claude/CLAUDE.md` that imports `PRINCIPLES.md` and `USER.md` and carries the Lead role. Your own CLAUDE.md content is kept |
+| `opencode/skills/` | `~/.claude/skills/` |
+| `opencode/commands/` | `~/.claude/commands/` |
+| `engineering-memory` MCP | user-scope `mcpServers` entry in `~/.claude.json` (backup written to `~/.claude.json.engineeringos.bak`) |
+
+Names that collide with Claude Code built-ins get an `eos-` prefix:
+`/eos-review`, `/eos-debug`, and the `eos-code-review` / `eos-security-review`
+skills. Generated files are tracked in `~/.claude/.engineeringos-manifest.json`;
+re-syncing prunes files it no longer produces and never touches your own.
+Respects `CLAUDE_CONFIG_DIR`. Edit the sources under `opencode/`, never the
+generated files, then re-run `eng sync-claude` and restart Claude Code.
 
 ---
 
@@ -338,7 +361,7 @@ gh pr create --fill
 A maintainer reviews and approves. On approval, any new push dismisses the
 approval, so what is reviewed is exactly what merges. Then it is squash-merged.
 
-CI runs `bash -n scripts/eng`, `python3 -m py_compile`, `tests/test_eng.sh`,
+CI runs `bash -n scripts/eng`, `python3 -m py_compile`, `tests/test_eng.sh`, `tests/test_claude_sync.sh`,
 `tests/test_mcp.sh`, and `tests/test_ruleset.py`. Run the same tests locally
 before you push and CI should be green.
 
@@ -360,6 +383,8 @@ through [SECURITY.md](SECURITY.md), never a public issue.
 ```sh
 # Remove the engine sync (agents, skills, commands, MCP config) then delete the repos.
 rm -rf ~/.config/opencode/agents ~/.config/opencode/skills ~/.config/opencode/commands
+# Claude Code: delete the files listed in ~/.claude/.engineeringos-manifest.json, the
+# EngineeringOS block in ~/.claude/CLAUDE.md, and mcpServers."engineering-memory" in ~/.claude.json.
 # Edit ~/.config/opencode/opencode.jsonc and remove the "engineering-memory" mcp entry.
 rm -rf ~/EngineeringOS
 ```

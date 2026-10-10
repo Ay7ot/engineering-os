@@ -26,10 +26,13 @@ jobs:
         run: bash -n scripts/eng
 
       - name: Syntax check (python)
-        run: python3 -m py_compile mcp/engineering-memory/server.py
+        run: python3 -m py_compile mcp/engineering-memory/server.py scripts/claude_sync.py claude/hooks/eos_guard.py
 
       - name: Script tests
         run: bash tests/test_eng.sh
+
+      - name: Claude Code sync tests
+        run: bash tests/test_claude_sync.sh
 
       - name: MCP tests
         run: bash tests/test_mcp.sh
