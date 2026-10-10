@@ -7,24 +7,32 @@ DATA="${ENGINEERING_OS_DATA:-$ENGOS/data}"
 OC_CONFIG="$HOME/.config/opencode"
 PY="$(command -v python3 || true)"
 OC="$(command -v opencode || true)"
+CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 log() { printf '[eng] %s\n' "$*"; }
 
 cmd_exists() { command -v "$1" >/dev/null 2>&1; }
 
+# Claude Code counts as installed if the CLI is on PATH or its config dir exists
+# (the desktop app does not put `claude` on PATH).
+has_claude() { cmd_exists claude || [ -d "$CLAUDE_DIR" ]; }
+
 check_deps() {
   log "Checking dependencies..."
   local missing=0
-  for c in git python3 opencode; do
+  for c in git python3; do
     if cmd_exists "$c"; then log "  ok: $c ($(command -v $c))"; else log "  MISSING: $c"; missing=1; fi
   done
   [ "$missing" -eq 1 ] && { log "Install missing deps and re-run."; exit 1; }
+  if [ -n "$OC" ]; then log "  ok: opencode ($OC)"; else log "  skip: opencode not found"; fi
+  if has_claude; then log "  ok: Claude Code ($CLAUDE_DIR)"; else log "  skip: Claude Code not found"; fi
+  if [ -z "$OC" ] && ! has_claude; then log "Install OpenCode or Claude Code and re-run."; exit 1; fi
   log "  python3 has sqlite3: $("$PY" -c 'import sqlite3,sys; print("yes")' 2>/dev/null || echo no)"
 }
 
 ensure_engos() {
   log "Ensuring engine at $ENGOS (public, no personal data) ..."
-  for d in mcp/engineering-memory opencode/agents opencode/skills opencode/commands scripts templates; do
+  for d in mcp/engineering-memory claude/hooks opencode/agents opencode/skills opencode/commands scripts templates; do
     mkdir -p "$ENGOS/$d"
   done
   log "Ensuring data at $DATA (private; version-control this separately) ..."
@@ -132,6 +140,11 @@ JSON
   fi
 }
 
+sync_claude() {
+  log "Syncing Claude Code config into $CLAUDE_DIR ..."
+  "$PY" "$ENGOS/scripts/claude_sync.py" sync --engine "$ENGOS" --data "$DATA" --python "$PY"
+}
+
 health_checks() {
   log "Health checks..."
   log "  Engine: $ENGOS"
@@ -160,7 +173,10 @@ health_checks() {
   if [ -n "$OC" ]; then
     log "  OpenCode available: $OC"
   fi
-  log "  Note: restart opencode to load new agents/skills/commands/MCP."
+  if has_claude; then
+    "$PY" "$ENGOS/scripts/claude_sync.py" health --engine "$ENGOS" --data "$DATA" --python "$PY" || log "  Claude: health check failed"
+  fi
+  log "  Note: restart opencode / Claude Code to load new agents/skills/commands/MCP."
 }
 
 # --- worktree subcommand ---
@@ -481,10 +497,15 @@ PYEOF
 }
 
 case "${1:-health}" in
-  setup) check_deps; ensure_engos; link_opencode; configure_mcp; setup_shell_alias; health_checks ;;
+  setup)
+    check_deps; ensure_engos
+    if [ -n "$OC" ]; then link_opencode; configure_mcp; fi
+    if has_claude; then sync_claude; fi
+    setup_shell_alias; health_checks ;;
   health) health_checks ;;
   sync-opencode) link_opencode; configure_mcp ;;
+  sync-claude) sync_claude ;;
   worktree) shift; wt_main "$@";;
   repo-protect) shift; rp_main "$@";;
-  *) echo "usage: eng {setup|health|sync-opencode|worktree|repo-protect}" ;;
+  *) echo "usage: eng {setup|health|sync-opencode|sync-claude|worktree|repo-protect}" ;;
 esac

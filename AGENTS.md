@@ -20,6 +20,8 @@ a separate data directory (`$ENGINEERING_OS_DATA`, default `~/EngineeringOS/data
 | `opencode/commands/*.md` | Slash-command workflows |
 | `mcp/engineering-memory/server.py` | Stdlib-only MCP server over stdio |
 | `scripts/eng` | Bootstrap / health / sync / worktree / repo-protect CLI |
+| `scripts/claude_sync.py` | Translates `opencode/` into Claude Code config (`eng sync-claude`) |
+| `claude/hooks/eos_guard.py` | PreToolUse guard enforcing agent bash/edit allowlists in Claude Code |
 | `tests/` | Hermetic tests. These are what CI runs |
 | `templates/` | Seed files copied into a fresh data directory |
 | `docs/` | Architecture notes and framework ADRs |
@@ -30,11 +32,13 @@ a separate data directory (`$ENGINEERING_OS_DATA`, default `~/EngineeringOS/data
 
 ```sh
 bash tests/test_eng.sh          # CLI tests
+bash tests/test_claude_sync.sh  # Claude Code sync + guard tests
 bash tests/test_mcp.sh          # MCP server tests
 python3 tests/test_ruleset.py   # ruleset config guard
 bash -n scripts/eng             # shell syntax
 eng health                      # verify a local install
 eng sync-opencode               # push agents/skills/commands into ~/.config/opencode
+eng sync-claude                 # translate the same into ~/.claude + ~/.claude.json
 ```
 
 There is no build step and no package manager. Nothing to install.
@@ -50,6 +54,8 @@ There is no build step and no package manager. Nothing to install.
 - **Python**: stdlib only. The MCP server must never require a pip install.
 - **Read-only agents stay read-only**: deny `edit`, allow `bash` only for the
   specific read-only git commands needed.
+- `opencode/` is the single source of truth for agents/skills/commands. Claude
+  Code files are generated from it; never hand-edit generated output.
 - Match surrounding style; do not reformat unrelated code.
 
 ## Rules for agents in this repo

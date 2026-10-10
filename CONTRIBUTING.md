@@ -24,6 +24,7 @@ repo tooling). No pip installs: the MCP server is stdlib only.
 git clone https://github.com/Ay7ot/engineering-os.git ~/EngineeringOS
 cd ~/EngineeringOS
 bash tests/test_eng.sh
+bash tests/test_claude_sync.sh
 bash tests/test_mcp.sh
 ```
 
@@ -63,6 +64,7 @@ The `ci` workflow runs on every push and PR:
 | Bash syntax | `bash -n scripts/eng` |
 | Python syntax | `python3 -m py_compile mcp/engineering-memory/server.py` |
 | CLI tests | `bash tests/test_eng.sh` |
+| Claude Code sync tests | `bash tests/test_claude_sync.sh` |
 | MCP tests | `bash tests/test_mcp.sh` |
 | Ruleset guard | `python3 tests/test_ruleset.py` |
 
@@ -71,7 +73,9 @@ All of these are required to pass before a PR can merge.
 ## Adding an agent, skill, or command
 
 These are plain Markdown with YAML frontmatter, synced into `~/.config/opencode/`
-by `eng sync-opencode`.
+by `eng sync-opencode` and translated into `~/.claude/` by `eng sync-claude`.
+If you add a permission shape the translator does not handle, extend
+`scripts/claude_sync.py` and `tests/test_claude_sync.sh` in the same PR.
 
 - **Agent** → `opencode/agents/<name>.md`, with `description` and `mode`
   (`primary` or `subagent`) and a `permission` block. Keep read-only agents
