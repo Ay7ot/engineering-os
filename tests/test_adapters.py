@@ -120,7 +120,46 @@ with tempfile.TemporaryDirectory() as t:
         '    "*": deny\n    "git status *": allow', '    "git status *": allow\n    "*": deny', 1))
     check("'*' default must be the first rule", "must be the first rule" in (raises(lambda: load_source(eng)) or ""))
 
-print("test_adapters: OpenCode golden (vs pre-migration opencode/ files)")
+print("test_adapters: skill structure (see skills/skill-authoring)")
+from adapters.claude.adapter import SKILL_RENAMES  # noqa: E402
+
+TRIGGER = re.compile(r"(^|[.!?]\s+)Use (when|whenever|for|after|before|periodically)\b")
+EDITOR_SPECIFIC = ("mcp__", ".claude/", "CLAUDE_CONFIG_DIR", ".config/opencode", ".opencode/",
+                   "TodoWrite", "AskUserQuestion", "WebFetch", "WebSearch", "NotebookEdit")
+ONE_WORD_RENAMED = [n for n in SKILL_RENAMES if "-" not in n]
+bad = []
+for s in src.skills:
+    desc = s.fm.get("description", "")
+    texts = [desc, s.body] + [f.read_text(errors="ignore") for _, f in s.files]
+    problems = []
+    if not TRIGGER.search(desc):
+        problems.append("description lacks a 'Use when/for/after/before ...' sentence")
+    if len(desc) > 300:
+        problems.append(f"description too long ({len(desc)} > 300 chars)")
+    for heading in ("When to use", "Checklist"):
+        if not re.search(rf"^## {heading}\s*$", s.body, re.M):
+            problems.append(f"missing '## {heading}'")
+    for word in EDITOR_SPECIFIC:
+        if any(word in t for t in texts):
+            problems.append(f"editor-specific reference {word!r}")
+    if problems:
+        bad.append(f"{s.name}: {'; '.join(problems)}")
+check("every skill has a trigger sentence, When to use, Checklist, and is editor-neutral", not bad, bad)
+
+# One-word renamed skills are only rewritten for editors when written as `name`.
+loose = []
+for item in src.skills + src.agents + src.commands:
+    texts = [item.fm.get("description", ""), item.body]
+    for name in ONE_WORD_RENAMED:
+        for t in texts:
+            if re.search(rf"(?<![`\w-]){re.escape(name)}(?![`\w-])\s+skill", t):
+                loose.append(f"{item.path.relative_to(ROOT)}: '{name} skill' without backticks")
+check("renamed one-word skills are referenced in backticks", not loose, loose)
+check("all expected skills present",
+      {"simplify", "memory-hygiene", "skill-authoring", "dataviz", "code-review", "testing", "technical-research"}
+      <= {s.name for s in src.skills})
+
+print("test_adapters: OpenCode golden (agents/commands vs pre-migration files; skills pass through)")
 # Intended changes since the fixtures were captured. The golden compares each
 # rendered agent with its fixture after applying exactly these edits, so any
 # other drift (a dropped rule, a reorder, a stray prompt edit) still fails.
@@ -150,6 +189,20 @@ RESEARCHER_TOOLS = (
     "(`log`, `show`, `diff`, `status`, `rev-parse`, `ls-files`, `describe`, listing forms of "
     "`branch`/`tag`, `git remote -v`) and `opencode mcp`. Do not clone, fetch, or change any repo; "
     "read upstream source through `webfetch` (e.g. raw GitHub files) instead.\n")
+BUILDER_ANCHOR = "- Do not add code comments unless they explain non-obvious rationale the task requires.\n"
+BUILDER_SIMPLIFY = ("- Before handing off for review, run the `simplify` skill on your change "
+                    "(behaviour must not change; report what you leave alone).\n")
+TESTER_ANCHOR = ("- If you cannot run a required verification (missing command, env, credentials), "
+                 "say so explicitly rather than guessing.\n")
+TESTER_RUN_FOR_REAL = ('- For user-visible changes, follow the "Run it for real" steps in the `testing` skill. '
+                       "Prove the environment is safe first (no production or shared data, test-mode keys, "
+                       "outbound messaging off); if you cannot, stop and report.\n")
+LEAD_ANCHOR = ("- Understand the request, explore, search EngineeringOS, research unfamiliar tech, produce "
+               "architecture proposal when appropriate, wait for approval when required, create implementation "
+               "plan, delegate implementation, run verification, run review, run security review when relevant, "
+               "update project knowledge (record decisions/research/state via MCP), produce a concise final report.\n")
+LEAD_MEMORY_HYGIENE = ("- When memory search returns conflicting answers, or after a large refactor, run the "
+                       "`memory-hygiene` skill (report first, apply only after approval).\n")
 FIXTURE_DELTAS = {  # 2026-10-10: read-only agents get read-only git in OpenCode too
     "explorer": {"bash_remove": ["git branch *", "git remote *"],
                  "bash_add": allows(*GIT_BRANCH_READ, *GIT_REMOTE_READ) + no_git_writes("log"),
@@ -164,6 +217,10 @@ FIXTURE_DELTAS = {  # 2026-10-10: read-only agents get read-only git in OpenCode
                                       *GIT_REMOTE_READ) + no_git_writes("diff", "log", "show"),
                    "body": [(RESEARCHER_RISKS, RESEARCHER_RISKS + RESEARCHER_TOOLS)]},
     "architect": {"bash_add": no_git_writes("log")},
+    # 2026-10-10: wire the new skills into the workflow
+    "builder": {"body": [(BUILDER_ANCHOR, BUILDER_ANCHOR + BUILDER_SIMPLIFY)]},
+    "tester": {"body": [(TESTER_ANCHOR, TESTER_ANCHOR + TESTER_RUN_FOR_REAL)]},
+    "lead": {"body": [(LEAD_ANCHOR, LEAD_ANCHOR + LEAD_MEMORY_HYGIENE)]},
 }
 
 
@@ -171,16 +228,17 @@ def apply_delta(name, fm, body, problems):
     d = FIXTURE_DELTAS.get(name)
     if not d:
         return fm, body
-    bash = dict(fm["permission"]["bash"])
-    for k in d.get("bash_remove", []):
-        if k not in bash:
-            problems.append(f"delta for {name}: {k!r} not in fixture")
-        bash.pop(k, None)
-    for k, v in d.get("bash_add", []):
-        if k in bash:
-            problems.append(f"delta for {name}: {k!r} already in fixture")
-        bash[k] = v
-    fm = dict(fm, permission=dict(fm["permission"], bash=bash))
+    if d.get("bash_remove") or d.get("bash_add"):
+        bash = dict(fm["permission"]["bash"])
+        for k in d.get("bash_remove", []):
+            if k not in bash:
+                problems.append(f"delta for {name}: {k!r} not in fixture")
+            bash.pop(k, None)
+        for k, v in d.get("bash_add", []):
+            if k in bash:
+                problems.append(f"delta for {name}: {k!r} already in fixture")
+            bash[k] = v
+        fm = dict(fm, permission=dict(fm["permission"], bash=bash))
     for a, b in d.get("body", []):
         if body.count(a) != 1:
             problems.append(f"delta for {name}: body text not found exactly once: {a[:40]!r}")
@@ -201,12 +259,27 @@ for c in src.commands:
     old = parse_frontmatter((FIXTURES / "commands" / f"{c.name}.md").read_text(), typed=True)
     if ordered(new[0]) != ordered(old[0]) or new[1] != old[1]:
         mism.append(f"commands/{c.name}")
-for s in src.skills:
-    fx = FIXTURES / "skills" / s.name / "SKILL.md"
-    if fx.exists() and oc.render_skill(s) != fx.read_bytes():
-        mism.append(f"skills/{s.name}")
 check("fixture deltas apply cleanly", not delta_problems, delta_problems)
-check("every agent, command and skill matches the fixture + declared deltas (typed, order-sensitive)", not mism, mism)
+check("every agent and command matches its fixture + declared deltas (typed, order-sensitive)", not mism, mism)
+check("no current skill uses targets (pass-through below is exercised)", all("targets" not in s.fm for s in src.skills))
+with tempfile.TemporaryDirectory() as t:
+    eng = Path(t)
+    for d in ("agents", "commands"):
+        shutil.copytree(ROOT / d, eng / d)
+    sk = eng / "skills" / "demo"
+    sk.mkdir(parents=True)
+    plain = "---\nname: demo\ndescription: Demo. Use when testing.\n---\n# Demo\nbody\n"
+    (sk / "SKILL.md").write_text(plain)
+    demo = load_source(eng).skills[0]
+    check("skill without targets installs byte-for-byte", oc.render_skill(demo) == plain.encode())
+    (sk / "SKILL.md").write_text("---\nname: demo\ndescription: Demo. Use when testing.\n"
+                                 "targets:\n  opencode:\n    license: MIT\n  claude:\n    x: y\n---\n# Demo\nbody\n")
+    demo = load_source(eng).skills[0]
+    out = oc.render_skill(demo)
+    out = out.decode() if isinstance(out, bytes) else out
+    fm, body = parse_frontmatter(out)
+    check("skill with targets: own target merged, others dropped, body kept",
+          fm.get("license") == "MIT" and "targets" not in fm and "x" not in fm and body == "# Demo\nbody\n", (fm, body))
 check("deltas only touch existing agents", set(FIXTURE_DELTAS) <= {a.name for a in src.agents}, set(FIXTURE_DELTAS))
 
 

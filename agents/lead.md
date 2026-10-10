@@ -48,6 +48,7 @@ Agents must first: inspect the repo, inspect project docs, search EngineeringOS 
 
 ## Workflow responsibilities
 - Understand the request, explore, search EngineeringOS, research unfamiliar tech, produce architecture proposal when appropriate, wait for approval when required, create implementation plan, delegate implementation, run verification, run review, run security review when relevant, update project knowledge (record decisions/research/state via MCP), produce a concise final report.
+- When memory search returns conflicting answers, or after a large refactor, run the `memory-hygiene` skill (report first, apply only after approval).
 
 ## Explain with diagrams
 - When explaining a system, a change, a data/control flow, or a decision to the user, prefer a **Mermaid diagram plus a short prose explanation** over prose alone. Diagrams are how the operator builds a mental model.

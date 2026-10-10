@@ -80,6 +80,14 @@ expect_contains "planner bash denied" "Bash" "$(grep '^disallowedTools' "$C/agen
 
 expect_file "renamed skill eos-security-review" "$C/skills/eos-security-review/SKILL.md"
 expect_file "renamed skill eos-code-review" "$C/skills/eos-code-review/SKILL.md"
+expect_file "renamed skill eos-simplify" "$C/skills/eos-simplify/SKILL.md"
+expect_file "renamed skill eos-dataviz" "$C/skills/eos-dataviz/SKILL.md"
+expect_nofile "built-in simplify not shadowed" "$C/skills/simplify"
+expect_file "memory-hygiene installed" "$C/skills/memory-hygiene/SKILL.md"
+expect_file "skill-authoring installed" "$C/skills/skill-authoring/SKILL.md"
+expect_missing "skill-authoring never teaches renamed names" "eos-" "$(cat "$C/skills/skill-authoring/SKILL.md")"
+expect_contains "code-review points at renamed security skill" '`eos-security-review`' "$(cat "$C/skills/eos-code-review/SKILL.md")"
+expect_contains "simplify points at renamed review skill" '`eos-code-review`' "$(cat "$C/skills/eos-simplify/SKILL.md")"
 expect_nofile "built-in skill name not shadowed" "$C/skills/security-review"
 expect_contains "skill name rewritten" "name: eos-security-review" "$(cat "$C/skills/eos-security-review/SKILL.md")"
 expect_contains "cross-skill refs rewritten" "eos-security-review" "$(cat "$C/skills/backend-architecture/SKILL.md")"
@@ -149,6 +157,14 @@ fm, _ = parse_frontmatter("---\r\npermission:\r\n  edit: deny\r\n---\r\nbody\r\n
 assert "Edit" in cs.translate_permissions(fm["permission"], "py")[0], "CRLF"
 assert "eos-code-review" in cs.rename_refs("see ~/.claude/skills/code-review/SKILL.md")
 assert "skills/code-review/SKILL.md" == cs.rename_refs("skills/code-review/SKILL.md")
+r = cs.rename_refs
+assert r("simplify the code") == "simplify the code", "prose untouched"
+assert r("use `simplify` now") == "use `eos-simplify` now", "backticked one-word renamed"
+assert r("see skills/simplify/SKILL.md") == "see skills/simplify/SKILL.md", "source path untouched"
+assert r("~/.claude/skills/dataviz/") == "~/.claude/skills/eos-dataviz/", "installed path renamed"
+assert r("`eos-simplify`") == "`eos-simplify`", "no double rename"
+assert r("`code-review` and code-review") == "`eos-code-review` and eos-code-review", "hyphenated as before"
+assert r("`eos-code-review`") == "`eos-code-review`", "no double rename (hyphenated)"
 dis, hooks = cs.translate_permissions({"bash": {"*": "deny", "npm *": "allow", "npm publish *": "deny"}}, "py")
 assert "--deny 'npm publish *'" in hooks[0][1], hooks
 dis, hooks = cs.translate_permissions({"edit": {"*": "allow", "*.env": "ask"}}, "py")
