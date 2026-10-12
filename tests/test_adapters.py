@@ -192,11 +192,16 @@ RESEARCHER_TOOLS = (
 BUILDER_ANCHOR = "- Do not add code comments unless they explain non-obvious rationale the task requires.\n"
 BUILDER_SIMPLIFY = ("- Before handing off for review, run the `simplify` skill on your change "
                     "(behaviour must not change; report what you leave alone).\n")
+BUILDER_TDD = ("- Before writing implementation code, use the `test-driven-development` skill (write a failing "
+               "test first). Keep the change minimal and surgical (`karpathy-guidelines`), and report fresh "
+               "command output before claiming anything passes (`verification-before-completion`).\n")
 TESTER_ANCHOR = ("- If you cannot run a required verification (missing command, env, credentials), "
                  "say so explicitly rather than guessing.\n")
 TESTER_RUN_FOR_REAL = ('- For user-visible changes, follow the "Run it for real" steps in the `testing` skill. '
                        "Prove the environment is safe first (no production or shared data, test-mode keys, "
                        "outbound messaging off); if you cannot, stop and report.\n")
+TESTER_VERIFY = ("- Never report a check as passing without the fresh command output in hand "
+                 "(`verification-before-completion`).\n")
 LEAD_ANCHOR = ("- Understand the request, explore, search EngineeringOS, research unfamiliar tech, produce "
                "architecture proposal when appropriate, wait for approval when required, create implementation "
                "plan, delegate implementation, run verification, run review, run security review when relevant, "
@@ -218,8 +223,11 @@ FIXTURE_DELTAS = {  # 2026-10-10: read-only agents get read-only git in OpenCode
                    "body": [(RESEARCHER_RISKS, RESEARCHER_RISKS + RESEARCHER_TOOLS)]},
     "architect": {"bash_add": no_git_writes("log")},
     # 2026-10-10: wire the new skills into the workflow
-    "builder": {"body": [(BUILDER_ANCHOR, BUILDER_ANCHOR + BUILDER_SIMPLIFY)]},
-    "tester": {"body": [(TESTER_ANCHOR, TESTER_ANCHOR + TESTER_RUN_FOR_REAL)]},
+    # 2026-10-12: wire test-driven-development / karpathy-guidelines / verification-before-completion
+    "builder": {"body": [(BUILDER_ANCHOR, BUILDER_ANCHOR + BUILDER_SIMPLIFY),
+                         (BUILDER_SIMPLIFY, BUILDER_SIMPLIFY + BUILDER_TDD)]},
+    "tester": {"body": [(TESTER_ANCHOR, TESTER_ANCHOR + TESTER_RUN_FOR_REAL),
+                        (TESTER_RUN_FOR_REAL, TESTER_RUN_FOR_REAL + TESTER_VERIFY)]},
     "lead": {"body": [(LEAD_ANCHOR, LEAD_ANCHOR + LEAD_MEMORY_HYGIENE)]},
 }
 
