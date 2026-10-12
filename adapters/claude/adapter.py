@@ -34,7 +34,8 @@ GUARD = Path(__file__).resolve().parent / "hooks" / "eos_guard.py"
 
 # Avoid shadowing Claude Code built-in skills/commands.
 SKILL_RENAMES = {"code-review": "eos-code-review", "security-review": "eos-security-review",
-                 "simplify": "eos-simplify", "dataviz": "eos-dataviz"}
+                 "simplify": "eos-simplify", "dataviz": "eos-dataviz",
+                 "frontend-design": "eos-frontend-design"}
 COMMAND_RENAMES = {"review": "eos-review", "debug": "eos-debug"}
 
 # Neutral model tiers -> Claude model aliases (override with targets.claude.model).
@@ -301,7 +302,12 @@ def sync(ctx, source):
         name = SKILL_RENAMES.get(s.name, s.name)
         w.write(cdir / "skills" / name / "SKILL.md", render_skill(name, s))
         for rel, f in s.files:
-            w.write(cdir / "skills" / name / rel, f.read_bytes())
+            data = f.read_bytes()
+            if f.suffix.lower() in (".md", ".txt"):
+                # Reference files can name other skills too; apply the same
+                # rename pipeline so a renamed skill is not a dead link there.
+                data = rename_refs(data.decode("utf-8")).encode("utf-8")
+            w.write(cdir / "skills" / name / rel, data)
 
     for c in source.commands:
         name = COMMAND_RENAMES.get(c.name, c.name)
