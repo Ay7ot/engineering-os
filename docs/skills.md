@@ -29,6 +29,7 @@ each editor (`eng sync`). Descriptions below are the trigger lines agents see.
 | `skill-authoring` | adding a new skill, changing a skill's scope, or when a skill is being ignored or loaded for the wrong tasks |
 | `technical-research` | investigating unfamiliar technology, evaluating a tool, comparing approaches, or writing a research report |
 | `testing` | creating tests, running the suite, verifying acceptance criteria, or confirming a change works end to end |
+| `agent-instructions` | asked to check, audit, update or fix AGENTS.md, or when project context has gone stale |
 
 ## Design, frontend and design systems
 
@@ -79,6 +80,13 @@ each editor (`eng sync`). Descriptions below are the trigger lines agents see.
 | `usability-testing` | planning user tests, validating a prototype, or investigating why users struggle with a product |
 | `ai-evals` | building evals for an LLM product, measuring output quality, or designing test cases and scoring rubrics |
 | `pm-handoff` | ending a session mid-task, or when another session will pick the work up |
+| `working-backwards` | defining a new product or feature, writing a PR/FAQ, or working back from a future state |
+| `scoping-cutting` | defining an MVP, fighting scope creep, or deciding what to drop to ship sooner |
+| `product-manager-toolkit` | scoring or sequencing product work, planning capacity, or sizing a feature portfolio |
+| `customer-journey-map` | mapping the customer experience, finding friction or drop-off, or improving onboarding and retention |
+| `ai-product` | building or reviewing an AI feature, or debugging unreliable model output |
+| `ai-product-strategy` | planning an AI feature or roadmap, or when AI is being added without a clear user problem |
+| `grilling` | asked to stress-test thinking, harden a plan, or resolve open questions before implementation |
 
 ## Engineering process
 
@@ -92,7 +100,7 @@ each editor (`eng sync`). Descriptions below are the trigger lines agents see.
 | `using-git-worktrees` | starting work that must not disturb the current checkout |
 | `executing-plans` | handed a plan to implement in a separate session |
 
-## Marketing and GTM
+## Marketing, SEO and growth
 
 | Skill | Use when |
 |---|---|
@@ -108,18 +116,98 @@ each editor (`eng sync`). Descriptions below are the trigger lines agents see.
 | `emails` | building an automated email flow or drip campaign, choosing sequence length and timing, or writing sequence copy |
 | `cold-email` | writing prospecting or SDR emails, subject lines, opening lines, or a multi-touch follow-up sequence |
 | `launch` | preparing to ship publicly, writing a launch or go-to-market plan, or announcing a release |
+| `programmatic-seo` | planning many similar pages around one keyword pattern, or when a live set is thin or not indexing |
+| `competitor-alternatives` | creating alternative, vs or "A vs B" pages, or refreshing comparison content |
+| `content-strategy` | deciding what to write about, building content pillars, topic clusters or an editorial calendar |
+| `directory-submissions` | choosing directories and tiers, preparing listing copy, or running a review drive |
+| `lead-magnets` | choosing what to give away, designing an opt-in, or fixing a magnet that does not convert |
+| `ad-creative` | asked for headlines, descriptions or RSA copy, or iterating on winning and losing ads |
+| `ads` | setting up a campaign, choosing targeting, or diagnosing high CPA, low CTR or wasted spend |
+| `social` | planning a content calendar, repurposing long-form content, or scripting a Reel |
+| `marketing-psychology` | asking why people buy, picking a bias such as anchoring or social proof, or designing a nudge |
+| `marketing-ideas` | stuck on how to market, asking what else to try, or shortlisting channels |
+| `product-marketing-context` | starting marketing for a product, when a brief is missing or stale, or when another marketing task needs agreed context |
+
+## Founder, GTM and monetisation
+
+| Skill | Use when |
+|---|---|
+| `referral-program` | building a refer-a-friend or affiliate programme, choosing incentives, or diagnosing a low referral rate |
+| `churn-prevention` | customers keep cancelling, designing an exit survey and save offers, or setting up dunning |
+| `founder-sales` | doing early outreach, running first discovery calls, qualifying leads, or deciding when to hire a salesperson |
+| `pitch-deck` | building or reviewing a fundraising deck or asking what slides to include |
+| `yc-pitch-deck` | preparing for YC, Demo Day, or a Sequoia-format pitch |
+| `fundraising` | weighing venture capital against bootstrapping, preparing to meet investors, or running a round |
+| `measuring-product-market-fit` | asking if you have PMF, reading retention data, or choosing between scaling and iterating |
+| `pricing-strategy` | setting a price for the first time, moving between freemium and paid, or testing monetisation changes |
+
+## Content, docs and media
+
+| Skill | Use when |
+|---|---|
+| `ux-writing` | writing or reviewing product UI text |
+| `doc-coauthoring` | writing a proposal, spec, PRD or decision doc with the user |
+| `internal-comms` | drafting a team or company-wide update |
+| `research` | asked to research a topic, gather docs or API facts, or delegate reading legwork to a background agent |
+| `ppt-visual` | building or redesigning presentation slides, fixing a text-heavy deck, or specifying a slide layout |
+| `brandkit` | generating a brand-guidelines board, logo concept sheet or identity deck image |
+| `ip-as-logo` | making a mascot or creature image, or proposing three directions and six candidates |
+| `brand-guidelines` | brand colors, style guidelines or company design standards apply |
+| `theme-factory` | a slide deck, doc, report or HTML page needs a consistent look |
+| `canvas-design` | asked for a poster, a print, a piece of art or another static design |
+| `algorithmic-art` | asked for generative or algorithmic art, a code-drawn composition or an interactive viewer |
+| `d3-visualization` | implementing a bespoke chart, dashboard, map or network diagram in code rather than a ready-made chart component |
+| `text-to-lottie` | asked to create, edit, fix or preview a Lottie animation |
+| `prompt-images` | prompting an image model or building an image generation feature |
+| `prompt-videos` | prompting a video model or building a video generation feature |
+| `hyperframes` | asked to make, edit, animate or render a video, promo, explainer, captioned clip, title card or social clip |
+
+## Design process and tooling
+
+| Skill | Use when |
+|---|---|
+| `design-critique` | reviewing a mockup, prototype or live UI with peers, or receiving feedback on your own design |
+| `wireframe-prototyping` | sketching a new screen or flow, building an interactive prototype for feedback, or deciding how much fidelity a concept needs |
+| `design-workshop-facilitation` | running a problem definition, ideation, journey mapping or alignment session, or planning a design sprint |
+| `loop-me` | asked to design or spec a repeating workflow, or to find loops worth delegating |
+| `just-scrape` | you need content from a URL, structured data from a site, or change tracking |
+| `find-skills` | asked whether a skill exists for something, or to extend what agents can do |
+| `deploy-to-vercel` | asked to deploy an app, get a preview link, push a site live, or check a deployment |
+| `agent-browser` | asked to test a web app, open a site, capture a page, or reproduce a UI bug |
+| `gstack` | asked to open or test a site, verify a deployment, walk a user flow, or file a bug with screenshots |
+| `extract-design-system` | asked to bootstrap a design system from a live site |
+| `ui-ux-pro-max` | building or reviewing a screen, page or component and you need concrete thresholds |
+| `impeccable` | building or refining UI, when a design looks generic or templated |
 
 ## Provenance
 
-The skills added from the aiuxplayground.com catalog on 2026-10-12 are
-distillations of upstream work. Each carries `metadata.upstream` (source repo)
-and `metadata.license`. Licenses: MIT for mattpocock/skills, obra/superpowers,
-coreyhaines31/marketingskills, leonxlnx/taste-skill, jakubkrehel/skills,
-emilkowalski/skills, wshobson/agents, shadcn/ui, ibelick/ui-skills,
-slb2248/ai-ux-skills, addyosmani/web-quality-skills, phuryn/pm-skills,
-RefoundAI/lenny-skills, multica-ai/andrej-karpathy-skills, vercel-labs,
-and others; Apache-2.0 for anthropics/skills, anthropics/knowledge-work-plugins,
-replicate/skills, heygen-com/hyperframes, ReScienceLab/opc-skills.
-Skills from repos with no declared license, and the source-available Anthropic
-document skills (docx, pdf, pptx, xlsx), were intentionally not adopted.
+Many skills were distilled on 2026-10-12 from the
+[aiuxplayground.com skills catalogue](https://aiuxplayground.com/skills) (175
+listed). Each adapted skill carries `metadata.upstream` (source repo) and
+`metadata.license`; only permissively licensed sources were adopted.
+
+Adopted licences: **MIT** for coreyhaines31/marketingskills, mattpocock/skills,
+obra/superpowers, leonxlnx/taste-skill, jakubkrehel/skills, emilkowalski,
+RefoundAI/lenny-skills, phuryn/pm-skills, shawnpang, guia-matthieu, sickn33,
+vercel-labs, slb2248/ai-ux-skills, addyosmani/web-quality-skills,
+multica-ai/andrej-karpathy-skills, diffusionstudio/lottie, scrapegraphai,
+claude-office-skills, garrytan, arvindrk, nextlevelbuilder, s1dashu,
+agentspace-so, jamesrochabrun, ehmo, sleekdotdesign, stripe, and others;
+**Apache-2.0** for anthropics/skills, anthropics/knowledge-work-plugins,
+anthropics/claude-plugins-official, replicate/skills, heygen-com/hyperframes,
+google-labs-code/stitch-skills, ReScienceLab/opc-skills, pbakaus/impeccable,
+vercel-labs/agent-browser.
+
+**Not adopted.** The source-available Anthropic document skills (`docx`, `pdf`,
+`pptx`, `xlsx`) and skills whose source repo declares no licence (`unslop`,
+`firecrawl`, `ai-image-generation`, `remotion-*`, `notion-*`, `review-loop`,
+and others) were left out.
+
+## Attribution
+
+Distilled skills are adapted works of the upstream projects named in each
+skill's `metadata.upstream`. Their notices are honoured here rather than
+copied verbatim: the wording is the EngineeringOS editors', the substance
+belongs to the upstream authors. Remove a skill, or its `metadata.upstream`
+line, if a licence changes.
 

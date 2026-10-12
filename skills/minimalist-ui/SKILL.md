@@ -39,7 +39,7 @@ SaaS design.
 - Body, UI and buttons: a clean geometric or native sans with character, e.g.
   `'SF Pro Display', 'Geist Sans', 'Helvetica Neue', 'Switzer', sans-serif`.
 - Hero headings and quotes: an editorial serif, e.g.
-  `'Lyon Text', 'Newsreader', 'Playfair Display', 'Instrument Serif', serif`,
+  `'Lyon Text', 'Newsreader', 'Playfair Display', 'Spectral', serif`,
   with tight tracking (`-0.02em` to `-0.04em`) and tight line-height (`1.1`).
 - Code, keystrokes and metadata: `'Geist Mono', 'SF Mono', 'JetBrains Mono',
   monospace`.

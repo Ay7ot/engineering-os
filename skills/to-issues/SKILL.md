@@ -3,7 +3,7 @@ name: to-issues
 description: Break a plan, spec or PRD into independently grabbable issues that each cut a complete vertical slice end to end. Use when turning approved scope into tracker issues. Not for the phase and dependency breakdown, which `project-planning` covers.
 metadata:
   audience: planner, lead
-  upstream: https://github.com/mattpocock/skills/tree/main/skills/engineering/to-issues
+  upstream: https://github.com/mattpocock/skills/tree/main/skills/engineering/to-tickets
   license: MIT
 ---
 # To Issues

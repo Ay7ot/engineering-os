@@ -10,13 +10,13 @@ metadata:
 
 ## When to use
 - You need a quick accessibility checklist or pattern while building a page.
-- Reviewing a page against the WCAG 2.1 levels and the common patterns.
+- Reviewing a page against the WCAG 2.2 levels and the common patterns.
 
 Create inclusive digital experiences that work for everyone. This is the quick
 reference; for full WCAG 2.2 criteria and remediation use `wcag-accessibility`, and for
 component-level focus and screen-reader craft use `better-accessibility`.
 
-## WCAG 2.1 quick reference
+## WCAG 2.2 quick reference
 **Level A (minimum)**: all images have alt text, videos have captions, content is
 keyboard accessible, no seizure-triggering content, pages have titles.
 

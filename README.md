@@ -222,35 +222,16 @@ Skills are playbooks loaded by agents when a task matches. They are plain
 markdown, easy to read and copy. The full catalogue, with the trigger line for
 each skill and its provenance, is in **[docs/skills.md](docs/skills.md)**.
 
-They fall into six groups:
-
-- **Core engineering** - `api-design`, `architecture-analysis`, `backend-architecture`,
-  `code-review`, `database-design`, `dataviz`, `debugging`, `diagrams`,
-  `documentation`, `frontend-architecture`, `git-workflow`, `memory-hygiene`,
-  `observability`, `payments`, `project-planning`, `repository-exploration`,
-  `security-review`, `simplify`, `skill-authoring`, `technical-research`, `testing`.
-- **Design, frontend and design systems** - `frontend-design`, `design-taste-frontend`,
-  `minimalist-ui`, `high-end-visual-design`, `redesign-existing-projects`,
-  `better-typography`, `better-colors`, `better-layout`, `better-ui`,
-  `tailwind-design-system`, `shadcn`, `create-design-md`, `web-interface-guidelines`.
-- **Motion and accessibility** - `apple-design`, `animate`, `review-animations`,
-  `break-ui`, `animation-vocabulary`, `improve-animations`,
-  `find-animation-opportunities`, `wcag-accessibility`, `better-accessibility`,
-  `accessibility-expert`.
-- **Product, discovery and AI product** - `brainstorming`, `to-prd`, `writing-plans`,
-  `prototype`, `triage`, `to-issues`, `wayfinder`, `opportunity-solution-tree`,
-  `user-research`, `usability-testing`, `ai-evals`, `pm-handoff`.
-- **Engineering process** - `test-driven-development`, `verification-before-completion`,
-  `subagent-driven-development`, `dispatching-parallel-agents`, `karpathy-guidelines`,
-  `using-git-worktrees`, `executing-plans`.
-- **Marketing and GTM** - `copywriting`, `copy-editing`, `page-cro`, `onboarding-cro`,
-  `seo-audit`, `ai-seo`, `schema-markup`, `analytics`, `ab-testing`, `emails`,
-  `cold-email`, `launch`.
+They fall into nine groups: core engineering; design, frontend and design
+systems; motion and accessibility; product, discovery and AI product;
+engineering process; marketing, SEO and growth; founder, GTM and monetisation;
+content, docs and media; and design process and tooling.
 
 Many of the non-core skills are distillations of the
 [aiuxplayground.com skills catalogue](https://aiuxplayground.com/skills). Each
 carries `metadata.upstream` and `metadata.license`; only permissively licensed
-sources were adopted (see [docs/skills.md](docs/skills.md)).
+sources were adopted, and the source-available or unlicensed ones were left out
+(see [docs/skills.md](docs/skills.md)).
 
 In Claude Code, `code-review`, `security-review`, `simplify`, `dataviz` and
 `frontend-design` are installed with an `eos-` prefix (`eos-code-review`, ...) so
