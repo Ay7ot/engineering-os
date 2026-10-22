@@ -38,8 +38,8 @@ words a task would actually use, the skill will be skipped.
 ## Frontmatter
 - `name` equal to the directory name, `description`, optional
   `metadata.audience` (which agents use it).
-- YAML subset only: maps and scalars, no lists. The loader rejects anything else
-  with `file:line`.
+- YAML subset only: maps, scalars and block lists. The loader rejects flow
+  collections, anchors and tabs with `file:line`.
 - If the name collides with an editor's built-in skill, the editor's adapter
   renames it on install (see `SKILL_RENAMES` in the Claude adapter). Add the
   rename in the same change.

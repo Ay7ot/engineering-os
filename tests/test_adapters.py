@@ -15,8 +15,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from adapters.common import (SourceError, Writer, emit_yaml, load_source,  # noqa: E402
-                             parse_frontmatter, strip_jsonc)
+from adapters.common import (Item, SourceError, Writer, emit_yaml, load_source,  # noqa: E402
+                             parse_frontmatter, render_frontmatter, strip_jsonc)
 from adapters.opencode import adapter as oc  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures" / "opencode-v1"
@@ -74,7 +74,19 @@ check("parses quoted keys and nested maps",
 check("folded block", parse_frontmatter("---\nd: >-\n  one\n  two\n---\n")[0]["d"] == "one two")
 check("inline comment stripped", parse_frontmatter("---\na: deny  # c\n---\n")[0]["a"] == "deny")
 check("body preserved byte-for-byte", parse_frontmatter("---\na: b\n---\n\n# T\n  x\n")[1] == "\n# T\n  x\n")
-check("lists rejected loudly", "lists are not supported" in (raises(lambda: parse_frontmatter("---\na:\n  - x\n---\n", "f.md")) or ""))
+check("lists of maps parse", parse_frontmatter('---\np:\n  - action: read\n    resource: "*"\n  - action: shell\n    resource: "git log *"\n---\n')[0]
+      == {"p": [{"action": "read", "resource": "*"}, {"action": "shell", "resource": "git log *"}]})
+check("lists of scalars parse", parse_frontmatter("---\np:\n  - a\n  - b\n---\n")[0] == {"p": ["a", "b"]})
+check("list item with a nested map", parse_frontmatter("---\np:\n  - action: read\n    where:\n      a: b\n---\n")[0]
+      == {"p": [{"action": "read", "where": {"a": "b"}}]})
+check("a list cannot sit beside a mapping key", raises(lambda: parse_frontmatter("---\n- x\n---\n", "f.md")) is not None)
+check("scalar list item cannot nest", raises(lambda: parse_frontmatter("---\np:\n  - x\n    y: z\n---\n", "f.md")) is not None)
+check("list item continuation must line up with the item",
+      "list item" in (raises(lambda: parse_frontmatter("---\np:\n  - action: shell\n   effect: deny\n---\n", "f.md")) or ""))
+check("quoted first key in a list item parses",
+      parse_frontmatter('---\np:\n  - "x y": 1\n    b: 2\n---\n')[0] == {"p": [{"x y": "1", "b": "2"}]})
+check("a comment before a list is skipped, not treated as a map",
+      parse_frontmatter("---\np:\n  # why\n  - a\n---\n")[0] == {"p": ["a"]})
 check("tabs rejected", raises(lambda: parse_frontmatter("---\na:\n\tb: c\n---\n", "f.md")) is not None)
 check("flow collections rejected", raises(lambda: parse_frontmatter("---\na: [x, y]\n---\n", "f.md")) is not None)
 check("unclosed frontmatter rejected", raises(lambda: parse_frontmatter("---\na: b\n", "f.md")) is not None)
@@ -84,8 +96,12 @@ check("bad escape rejected", raises(lambda: parse_frontmatter('---\nm: "a\\qb"\n
 check("text after quoted value rejected", raises(lambda: parse_frontmatter('---\nm: "a" b\n---\n', "f.md")) is not None)
 check("YAML-special words emitted quoted", emit_yaml({"a": "True", "b": "NULL", "c": "yes"}) == 'a: "True"\nb: "NULL"\nc: "yes"')
 check("JSONC trailing commas accepted", json.loads(strip_jsonc('{"a": [1, 2,], // c\n "b": "x,}",}')) == {"a": [1, 2], "b": "x,}"})
-err = raises(lambda: parse_frontmatter("---\nok: 1\nbad:\n  - x\n---\n", "agents/x.md")) or ""
-check("error carries file:line", "agents/x.md:4" in err, err)
+err = raises(lambda: parse_frontmatter("---\nok: 1\nbad:\n  x: y\n   z: q\n---\n", "agents/x.md")) or ""
+check("error carries file:line", "agents/x.md:5" in err, err)
+list_fm = {"permissions": [{"action": "read", "resource": "*", "effect": "allow"}], "tags": ["a", "b"]}
+check("lists emit and parse back unchanged",
+      parse_frontmatter(render_frontmatter(list_fm, ""))[0] == list_fm
+      and emit_yaml(list_fm) == 'permissions:\n  - action: read\n    resource: "*"\n    effect: allow\ntags:\n  - a\n  - b')
 
 print("test_adapters: emitter round trip on every source file")
 src = load_source(ROOT)
@@ -119,6 +135,15 @@ with tempfile.TemporaryDirectory() as t:
     bad_agent.write_text(bad_agent.read_text().replace("name: other", "name: explorer", 1).replace(
         '    "*": deny\n    "git status *": allow', '    "git status *": allow\n    "*": deny', 1))
     check("'*' default must be the first rule", "must be the first rule" in (raises(lambda: load_source(eng)) or ""))
+    good = (ROOT / "agents" / "explorer.md").read_text()
+    bad_agent.write_text(good.replace('    "git status *": allow', '    "git status *": maybe', 1))
+    check("unknown effect rejected", "must be one of" in (raises(lambda: load_source(eng)) or ""))
+    bad_agent.write_text(good.replace('    "git status *": allow', '    "git status *":\n      - allow', 1))
+    check("a list-valued permission rule is rejected, not stringified",
+          "must be one of" in (raises(lambda: load_source(eng)) or ""))
+    (eng / "agents" / "builder.md").write_text(
+        (ROOT / "agents" / "builder.md").read_text().replace("  opencode:\n    temperature:", "  opencode:\n    - temperature:", 1))
+    check("a non-map targets entry rejected", "map of editor" in (raises(lambda: load_source(eng)) or ""))
 
 print("test_adapters: skill structure (see skills/skill-authoring)")
 from adapters.claude.adapter import SKILL_RENAMES  # noqa: E402
@@ -231,6 +256,53 @@ FIXTURE_DELTAS = {  # 2026-10-10: read-only agents get read-only git in OpenCode
     "lead": {"body": [(LEAD_ANCHOR, LEAD_ANCHOR + LEAD_MEMORY_HYGIENE)]},
 }
 
+# 2026-10-21: model_tier resolves to an OpenCode selector. The fixture golden
+# compares the v1 dialect, which has no `#variant`.
+TIER_MODEL = {
+    "deep": "opencode-go/deepseek-v4.1-flash#max",
+    "standard": "opencode-go/deepseek-v4.1-flash#high",
+    "fast": "opencode-go/mimo-v2.6-flash",
+}
+
+
+def legacy(selector):
+    return selector.split("#", 1)[0]
+
+
+MODEL_DELTAS = {name: legacy(model) for name, model in {
+    "lead": TIER_MODEL["deep"], "architect": TIER_MODEL["deep"],
+    "reviewer": TIER_MODEL["deep"], "security": TIER_MODEL["deep"],
+    "builder": TIER_MODEL["standard"], "planner": TIER_MODEL["standard"],
+    "researcher": TIER_MODEL["standard"], "tester": TIER_MODEL["standard"],
+    "explorer": TIER_MODEL["fast"],
+}.items()}
+
+
+def with_model(fm, model):
+    """Fixture fm plus 'model', where the renderer emits it (before permission)."""
+    out, placed = {}, False
+    for k, v in fm.items():
+        if k == "model":
+            continue
+        if k == "permission" and not placed:
+            out["model"] = model
+            placed = True
+        out[k] = v
+    if not placed:
+        out["model"] = model
+    return out
+
+
+# 2026-10-22: OpenCode's `.env` prompt is restored after a blanket read allow in
+# both dialects (agent rules are appended after the editor's base policy).
+READ_POLICY = {"*": "allow", "*.env": "ask", "*.env.*": "ask", "*.env.example": "allow"}
+
+
+def with_read_policy(fm):
+    perms = dict(fm["permission"])
+    perms["read"] = READ_POLICY
+    return dict(fm, permission=perms)
+
 
 def apply_delta(name, fm, body, problems):
     d = FIXTURE_DELTAS.get(name)
@@ -257,13 +329,16 @@ def apply_delta(name, fm, body, problems):
 mism, delta_problems = [], []
 for a in src.agents:
     # typed=True: 0.1 / false must stay number / bool, not become "0.1" / "false"
-    new = parse_frontmatter(oc.render_agent(a), typed=True)
+    new = parse_frontmatter(oc.render_agent(a, v2=False), typed=True)
     old = parse_frontmatter((FIXTURES / "agents" / f"{a.name}.md").read_text(), typed=True)
-    old = apply_delta(a.name, *old, delta_problems)
-    if ordered(new[0]) != ordered(old[0]) or new[1] != old[1]:
+    old_fm, old_body = apply_delta(a.name, *old, delta_problems)
+    if a.name in MODEL_DELTAS:
+        old_fm = with_model(old_fm, MODEL_DELTAS[a.name])
+    old_fm = with_read_policy(old_fm)
+    if ordered(new[0]) != ordered(old_fm) or new[1] != old_body:
         mism.append(f"agents/{a.name}")
 for c in src.commands:
-    new = parse_frontmatter(oc.render_command(c), typed=True)
+    new = parse_frontmatter(oc.render_command(c, v2=False), typed=True)
     old = parse_frontmatter((FIXTURES / "commands" / f"{c.name}.md").read_text(), typed=True)
     if ordered(new[0]) != ordered(old[0]) or new[1] != old[1]:
         mism.append(f"commands/{c.name}")
@@ -289,6 +364,40 @@ with tempfile.TemporaryDirectory() as t:
     check("skill with targets: own target merged, others dropped, body kept",
           fm.get("license") == "MIT" and "targets" not in fm and "x" not in fm and body == "# Demo\nbody\n", (fm, body))
 check("deltas only touch existing agents", set(FIXTURE_DELTAS) <= {a.name for a in src.agents}, set(FIXTURE_DELTAS))
+
+print("test_adapters: OpenCode model tiers")
+check("adapter tier map matches the pinned expectation", oc.TIER_MODELS == TIER_MODEL, oc.TIER_MODELS)
+check("every tier is used by at least one agent",
+      set(TIER_MODEL) == {a.fm.get("model_tier") for a in src.agents},
+      {a.fm.get("model_tier") for a in src.agents})
+SELECTOR = re.compile(r"^[a-z0-9-]+/[a-z0-9./-]+(?:#[a-z]+)?$")
+bad = []
+for a in src.agents:
+    got = parse_frontmatter(oc.render_agent(a, v2=False))[0].get("model")
+    want = MODEL_DELTAS[a.name]
+    if got != want:
+        bad.append(f"{a.name}: {got!r} != {want!r}")
+    elif not SELECTOR.match(want):
+        bad.append(f"{a.name}: malformed selector {want!r}")
+check("every agent renders its tier's selector", not bad, bad)
+lead = next(a for a in src.agents if a.name == "lead")
+check("lead resolves through the tier map now that its explicit target is gone",
+      parse_frontmatter(oc.render_agent(lead, v2=False))[0].get("model") == legacy(TIER_MODEL["deep"]))
+check("'#variant' would round-trip if we emit one (effort is a follow-up, not lost)",
+      parse_frontmatter('---\nm: "opencode-go/deepseek-v4.1-flash#max"\n---\n')[0]["m"]
+      == "opencode-go/deepseek-v4.1-flash#max")
+tiered = Item("x", {"name": "x", "description": "d", "role": "subagent", "model_tier": "fast"}, "", ROOT / "agents" / "x.md")
+overridden = Item("y", {"name": "y", "description": "d", "role": "subagent", "model_tier": "fast",
+                        "targets": {"opencode": {"model": "opencode-go/kimi-k3#low"}}}, "", ROOT / "agents" / "y.md")
+untiered = Item("z", {"name": "z", "description": "d", "role": "subagent"}, "", ROOT / "agents" / "z.md")
+check("model_tier maps when no target override", oc.model_for(tiered) == TIER_MODEL["fast"])
+check("targets.opencode.model beats model_tier", oc.model_for(overridden) == "opencode-go/kimi-k3#low")
+check("v1 strips #variant from an explicit target model",
+      parse_frontmatter(oc.render_agent(overridden, v2=False))[0]["model"] == "opencode-go/kimi-k3")
+check("v2 keeps #variant from an explicit target model",
+      parse_frontmatter(oc.render_agent(overridden, v2=True))[0]["model"] == "opencode-go/kimi-k3#low")
+check("no tier and no override inherits (None)", oc.model_for(untiered) is None)
+check("untiered agent renders no model line", "model" not in parse_frontmatter(oc.render_agent(untiered, v2=False))[0])
 
 
 def oc_match(cmd, pattern):
@@ -344,6 +453,94 @@ check("read-only git inspection still allowed", not lost, lost)
 check("typed golden would catch quoting drift",
       parse_frontmatter("---\nt: 0.1\n---\n", typed=True)[0] != parse_frontmatter('---\nt: "0.1"\n---\n', typed=True)[0])
 
+print("test_adapters: OpenCode v2 agent dialect")
+
+
+def v2_effect(rules, action, value):
+    """OpenCode v2: ordered rules, last match wins; `*` matches any action."""
+    hit = None
+    for r in rules:
+        if r["action"] in (action, "*") and oc_match(value, r["resource"]):
+            hit = r["effect"]
+    return hit if hit is not None else "ask"
+
+
+shape_bad = []
+for a in src.agents:
+    text = oc.render_agent(a, v2=True)
+    fm, body = parse_frontmatter(text)
+    if "\npermission:" in text or "\ntemperature:" in text:
+        shape_bad.append(f"{a.name}: legacy field emitted")
+    if not isinstance(fm.get("permissions"), list):
+        shape_bad.append(f"{a.name}: permissions is not a list")
+    if body != a.body:
+        shape_bad.append(f"{a.name}: body changed")
+    actions = [r["action"] for r in fm.get("permissions", [])]
+    if {"bash", "task"} & set(actions):
+        shape_bad.append(f"{a.name}: v1 action name")
+    if set(actions) & oc.V2_RETIRED_ACTIONS:
+        shape_bad.append(f"{a.name}: retired action emitted")
+    if not all(set(r) == {"action", "resource", "effect"} for r in fm.get("permissions", [])):
+        shape_bad.append(f"{a.name}: rule with extra/missing keys")
+    temp = a.target("opencode").get("temperature")
+    if temp is not None and fm.get("request", {}).get("body", {}).get("temperature") != temp:
+        shape_bad.append(f"{a.name}: temperature not moved into request.body")
+check("every agent renders a V2 permissions list with no legacy fields", not shape_bad, shape_bad)
+
+PROBES = MUTATING_GIT + ["npm test", "rm -rf /tmp/x", "python3 -m pytest", "ls", "cat ~/.ssh/id_rsa"]
+disagree = [f"{a.name}: {c}"
+            for a in src.agents
+            for c in PROBES
+            if oc_bash(a.fm["permissions"]["bash"], c)
+            != v2_effect(parse_frontmatter(oc.render_agent(a, v2=True))[0]["permissions"], "shell", c)]
+check("v2 list resolves exactly like the v1 map (shell)", not disagree, disagree)
+read_disagree = []
+for a in src.agents:
+    v1_read = parse_frontmatter(oc.render_agent(a, v2=False))[0]["permission"]["read"]
+    v2_rules = parse_frontmatter(oc.render_agent(a, v2=True))[0]["permissions"]
+    for p in ("*.env", "*.env.local", "*.env.example", "src/app.py", "/etc/passwd"):
+        if oc_bash(v1_read, p) != v2_effect(v2_rules, "read", p):
+            read_disagree.append(f"{a.name}: {p}")
+check("v2 list resolves exactly like the v1 map (read)", not read_disagree, read_disagree)
+env_bad = [a.name for a in src.agents
+           if v2_effect(parse_frontmatter(oc.render_agent(a, v2=True))[0]["permissions"], "read", ".env") != "ask"
+           or v2_effect(parse_frontmatter(oc.render_agent(a, v2=True))[0]["permissions"], "read", ".env.example") != "allow"
+           or oc_bash(parse_frontmatter(oc.render_agent(a, v2=False))[0]["permission"]["read"], ".env") != "ask"]
+check("reading .env asks and .env.example is allowed, in both dialects", not env_bad, env_bad)
+edit_disagree = [f"{a.name}: {p}"
+                 for a in src.agents
+                 for p in ("src/app.py", "docs/adr.md", "package.json")
+                 if oc_bash(a.fm["permissions"]["edit"], p)
+                 != v2_effect(parse_frontmatter(oc.render_agent(a, v2=True))[0]["permissions"], "edit", p)]
+check("v2 list resolves exactly like the v1 map (edit)", not edit_disagree, edit_disagree)
+try:
+    oc.permission_rules({"todowrite": "deny"}, True)
+    retired_deny = ""
+except SystemExit as exc:
+    retired_deny = str(exc)
+check("a deny on a retired V2 action fails instead of vanishing silently",
+      "cannot be expressed" in retired_deny, retired_deny)
+check("v2 denies mutating git for read-only agents through the list",
+      not [f"{n}: {c}" for n in READ_ONLY
+           for c in MUTATING_GIT
+           if v2_effect(parse_frontmatter(oc.render_agent(next(a for a in src.agents if a.name == n), v2=True))[0]["permissions"],
+                        "shell", c) == "allow"])
+check("v2 keeps read-only git inspection through the list",
+      not [f"{n}: {c}" for n in READ_ONLY for c in want[n]
+           if v2_effect(parse_frontmatter(oc.render_agent(next(a for a in src.agents if a.name == n), v2=True))[0]["permissions"],
+                        "shell", c) != "allow"])
+
+cmd_bad = [c.name for c in src.commands
+           if "subtask" in parse_frontmatter(oc.render_command(c, v2=True))[0]
+           or parse_frontmatter(oc.render_command(c, v2=True))[0].get("subagent")
+           != parse_frontmatter(oc.render_command(c, v2=False))[0].get("subtask")]
+check("commands use `subagent` in v2 and keep `subtask` in v1", not cmd_bad, cmd_bad)
+check("v2 keeps the effort variant, v1 strips it",
+      parse_frontmatter(oc.render_agent(next(a for a in src.agents if a.name == "builder"), v2=True))[0]["model"]
+      == TIER_MODEL["standard"]
+      and parse_frontmatter(oc.render_agent(next(a for a in src.agents if a.name == "builder"), v2=False))[0]["model"]
+      == legacy(TIER_MODEL["standard"]))
+
 print("test_adapters: OpenCode install (sandbox HOME)")
 with tempfile.TemporaryDirectory() as t:
     home = Path(t)
@@ -364,6 +561,9 @@ with tempfile.TemporaryDirectory() as t:
     check("sync succeeds", r.returncode == 0, r.stderr or r.stdout)
     check("legacy file adopted, not skipped", "SKIPPED" not in r.stdout, r.stdout)
     check("all agents installed", all((ocdir / "agents" / f"{a.name}.md").is_file() for a in src.agents))
+    ex = (ocdir / "agents" / "explorer.md").read_text()
+    check("agents installed in the v2 dialect",
+          "\npermissions:" in ex and "\npermission:" not in ex and "\nrequest:" in ex, ex[:200])
     check("user agent untouched", (ocdir / "agents" / "mine.md").read_text().endswith("keep\n"))
     cfg = json.loads(strip_jsonc((ocdir / "opencode.jsonc").read_text()))
     mem = cfg["mcp"]["servers"]["engineering-memory"]
@@ -424,7 +624,43 @@ with tempfile.TemporaryDirectory() as t:
     r = run_sync(home, "opencode", env)
     cfg = json.loads(strip_jsonc((home / ".config" / "opencode" / "opencode.jsonc").read_text()))
     check("v1 OpenCode gets v1 MCP shape", cfg.get("mcp", {}).get("engineering-memory", {}).get("timeout") == 10000, cfg)
+    ex = (home / ".config" / "opencode" / "agents" / "explorer.md").read_text()
+    check("v1 install keeps the legacy agent dialect",
+          "\npermission:" in ex and "\npermissions:" not in ex and "\ntemperature:" in ex, ex[:200])
     check("fresh install defaults to lead", cfg.get("default_agent") == "lead")
+
+# A v1 binary decides the dialect even when the config already uses the v2 MCP
+# shape (downgrade, copied dotfiles). V1 cannot read `permissions:` lists, so
+# guessing v2 here would silently drop every rule.
+with tempfile.TemporaryDirectory() as t:
+    home = Path(t)
+    (home / ".config" / "opencode").mkdir(parents=True)
+    (home / ".config" / "opencode" / "opencode.jsonc").write_text(
+        '{"mcp": {"servers": {"neon": {"type": "remote", "url": "https://mcp.neon.tech/mcp"}}}}')
+    r = run_sync(home, "opencode", fake_opencode(home / "bin", "1.9.3"))
+    ex = (home / ".config" / "opencode" / "agents" / "explorer.md").read_text()
+    check("v1 CLI + v2-shaped config still renders the legacy dialect",
+          r.returncode == 0 and "\npermission:" in ex and "\npermissions:" not in ex, ex[:200])
+
+# No CLI and no config: V2 reads V1 agents, so the unknown case takes V1.
+with tempfile.TemporaryDirectory() as t:
+    home = Path(t)
+    r = run_sync(home, "opencode", {"PATH": "/usr/bin:/bin"})
+    ex = (home / ".config" / "opencode" / "agents" / "explorer.md").read_text()
+    check("no CLI + no config falls back to the legacy dialect",
+          r.returncode == 0 and "\npermission:" in ex and "\npermissions:" not in ex, ex[:200])
+
+# A v2 binary upgrades a v1-shaped config to the v2 dialect.
+with tempfile.TemporaryDirectory() as t:
+    home = Path(t)
+    (home / ".config" / "opencode").mkdir(parents=True)
+    (home / ".config" / "opencode" / "opencode.jsonc").write_text(
+        '{"mcp": {"engineering-memory": {"type": "local", "command": ["/usr/bin/python3", "'
+        + str(ROOT) + '/mcp/engineering-memory/server.py"], "timeout": 10000}}}')
+    r = run_sync(home, "opencode", fake_opencode(home / "bin", "2.0.27"))
+    ex = (home / ".config" / "opencode" / "agents" / "explorer.md").read_text()
+    check("v2 CLI + v1-shaped config renders the v2 dialect",
+          r.returncode == 0 and "\npermissions:" in ex and "\npermission:" not in ex, ex[:200])
 
 print("test_adapters: invalid source aborts before writing")
 with tempfile.TemporaryDirectory() as t:

@@ -77,8 +77,9 @@ All of these are required to pass before a PR can merge.
 ## Adding an agent, skill, or command
 
 These are plain Markdown with editor-neutral YAML frontmatter. Adapters render
-them for each editor (`eng sync`). Frontmatter supports nested maps and scalars
-only (no lists); the loader rejects anything else with `file:line`.
+them for each editor (`eng sync`). Frontmatter supports nested maps, scalars and
+block lists; the loader rejects flow collections, anchors and tabs with
+`file:line`.
 
 - **Agent** → `agents/<name>.md` with `name` (= file name), `description`,
   `role` (`primary` or `subagent`), optional `model_tier` (`deep`, `standard`,

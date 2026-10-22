@@ -360,10 +360,18 @@ terminal). To stop making it the default, set a different `outputStyle` in
 ### OpenCode
 
 The OpenCode adapter (`adapters/opencode/`) writes `~/.config/opencode/`
-(respects `XDG_CONFIG_HOME`). It renders `role` as `mode`, `permissions` as
-`permission`, and passes `targets.opencode.*` (model, temperature, command
-`agent`/`subtask`) through. It registers the MCP server in the shape your
-OpenCode reads: `mcp.servers.<name>` for v2, `mcp.<name>` for v1. It also removes
+(respects `XDG_CONFIG_HOME`). It speaks the dialect the installed editor reads:
+**V2** (`permissions` ordered list, `request.body.temperature`,
+`shell`/`subagent` action names) on v2, and the legacy `permission` map plus
+`temperature` on v1. The dialect follows `opencode --version`; the config's MCP
+shape is only a hint when the CLI is not on `PATH`, and the unknown case falls
+back to v1 because v2 reads v1 agents but not the reverse. Models
+come from `model_tier` (deep → `opencode-go/deepseek-v4.1-flash#max`, standard →
+`…#high`, fast → `opencode-go/mimo-v2.6-flash`) unless `targets.opencode.model`
+overrides; the `#variant` is the effort setting and is dropped on the v1 dialect,
+which cannot parse it. An agent with neither a tier nor an override inherits the
+parent session's model. It registers the MCP server in the shape
+your OpenCode reads: `mcp.servers.<name>` for v2, `mcp.<name>` for v1. It also removes
 the stale v1 entry older `eng` versions wrote. Ownership works like the Claude
 adapter (manifest, `SKIPPED` for files it did not write). On the first run it
 adopts files the old copy-based sync installed. `lead` becomes `default_agent`

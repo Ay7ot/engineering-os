@@ -12,9 +12,11 @@ MCP server there. `eng sync` runs every adapter whose editor is installed.
 
 ## Neutral source format
 
-Frontmatter is a small YAML subset: nested maps and scalars. Lists, flow
-collections (`[...]`, `{...}`), anchors and tabs are rejected with `file:line`,
-and sync aborts before writing anything.
+Frontmatter is a small YAML subset: nested maps, scalars, and block lists
+(`- item`, or `- key: value` with a nested map). Flow collections (`[...]`,
+`{...}`), anchors, tabs and multi-document are rejected with `file:line`, and
+sync aborts before writing anything. Sources still express `permissions` as a
+map; only the generated OpenCode V2 files use the list form.
 
 **Agent** (`agents/<name>.md`)
 
@@ -23,7 +25,7 @@ and sync aborts before writing anything.
 | `name` | yes | Must equal the file name |
 | `description` | yes | When to use this agent |
 | `role` | yes | `primary` (the orchestrating mode) or `subagent` |
-| `model_tier` | no | `deep`, `standard` or `fast`; each adapter maps it to a model |
+| `model_tier` | no | `deep`, `standard` or `fast`; each adapter maps it to a model (see [model tiers](#rules-every-adapter-follows)) |
 | `permissions` | no | `read`, `edit`, `bash`, `webfetch`, `websearch`, `task`, ...: `allow` / `deny` / `ask`, or a map of patterns. In a map, the `"*"` default must come first (`"*": deny`, then `"git log *": allow`); the loader rejects other orders because editors resolve precedence differently. Adapters must never grant more than the most restrictive reading (Claude: denies win over allows). To carve a write form out of an allow wildcard, put the deny after the allow it narrows (`"git log *": allow`, then `"git log *--output*": deny`): OpenCode applies the last matching rule, the Claude guard checks denies first, so both read it the same way |
 | `targets.<editor>` | no | Settings only that editor understands (e.g. `targets.opencode.temperature`, `targets.claude.model`) |
 
@@ -81,6 +83,41 @@ tool-name mapping note.
 - **Idempotent.** A second `eng sync` reports `(0 files changed)` and
   "already configured".
 - **Stdlib only.** No `pip install`.
+- **Map model tiers explicitly.** `model_tier` is our word, not the editor's.
+  Each adapter must resolve it, or agents silently share the parent session's
+  model. Current maps:
+
+  | Tier | OpenCode (`model`) | Claude Code (`model`) |
+  |---|---|---|
+  | `deep` | `opencode-go/deepseek-v4.1-flash#max` | `opus` |
+  | `standard` | `opencode-go/deepseek-v4.1-flash#high` | `sonnet` |
+  | `fast` | `opencode-go/mimo-v2.6-flash` | `haiku` |
+
+  `targets.<editor>.model` always wins over the tier map; an agent with neither
+  inherits the parent's model (OpenCode's own default). Changing a map is an
+  intended change: update the adapter, the pinned `TIER_MODEL` in
+  `tests/test_adapters.py`, and this table together.
+
+  The `#variant` is the model's effort setting. It is emitted only for V2
+  agents: V1 parses agents through a compatibility loader that drops the suffix
+  silently, so the adapter strips it there.
+- **Do not widen a read allow past secrets.** OpenCode's base policy asks before
+  reading `*.env`, and agent rules are appended after it, so a blanket
+  `read: allow` would win. Both dialects re-state `*.env`/`*.env.*` → `ask` and
+  `*.env.example` → `allow` last. An agent that needs secrets must say so with an
+  explicit read map.
+- **Speak the editor's dialect, and pick it by version.** OpenCode V2 renamed
+  the agent fields: `permission` → `permissions` (an ordered list, not a map),
+  `temperature` → `request.body.temperature`, `bash`/`task` → `shell`/`subagent`
+  (`todowrite` and `list` are not V2 actions at all), and command `subtask` →
+  `subagent`. A V1 install cannot read the V2 list form, so the OpenCode adapter
+  decides the dialect from the same signal it uses for the MCP shape
+  (`agent_dialect`), and falls back to V2 when the CLI is not on `PATH`.
+- **Verify generated config against the editor itself.** `opencode debug agents`
+  prints the resolved model and permission list per agent. A `model: null` means
+  the selector or dialect is wrong; a missing rule means the translation dropped
+  it. Tests pin the source→dialect mapping, but that command is the oracle for
+  what the editor actually loaded.
 - **Collisions.** If generated names collide with the editor's built-ins, rename
   inside the adapter (see `SKILL_RENAMES` in the Claude adapter) and rewrite
   references. Hyphenated names (`code-review`) are rewritten wherever they
