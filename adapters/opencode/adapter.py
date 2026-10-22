@@ -15,6 +15,19 @@ from adapters.common import (MCP_NAME, Writer, atomic_write_json, load_json, log
 NAME = "opencode"
 CONFIG_FILE = "opencode.jsonc"
 
+# Neutral model tiers -> OpenCode `provider/model[#variant]` selectors. The
+# variant is the model's effort setting, so a tier can buy more thinking without
+# buying a different vendor. It is emitted only for V2 agents: V1 parses agents
+# through a compatibility loader that silently drops `#variant` (measured with
+# `opencode debug agents`, 2026-10-21), so render_agent strips it there. Override
+# per agent with `targets.opencode.model`; an agent with no tier and no override
+# inherits the parent session's model, which is OpenCode's own default.
+TIER_MODELS = {
+    "deep": "opencode-go/deepseek-v4.1-flash#max",
+    "standard": "opencode-go/deepseek-v4.1-flash#high",
+    "fast": "opencode-go/mimo-v2.6-flash",
+}
+
 
 def config_dir(ctx):
     xdg = ctx.env.get("XDG_CONFIG_HOME")
@@ -27,17 +40,91 @@ def detect(ctx):
 
 # --- rendering ------------------------------------------------------------------
 
-def render_agent(agent):
+# V2 renamed two permission actions. Everything else keeps its name.
+V2_ACTIONS = {"bash": "shell", "task": "subagent"}
+# Actions V2 has no tool for: emitting them would be rules that can never match.
+V2_RETIRED_ACTIONS = {"todowrite", "list"}
+# OpenCode prepends a base policy that asks before reading `.env` files. Agent
+# rules are appended after it and win, so a blanket `read: allow` would silently
+# remove that prompt. Re-state the policy last, in the editor's own shape.
+ENV_POLICY = (("*.env", "ask"), ("*.env.*", "ask"), ("*.env.example", "allow"))
+
+
+def env_policy(permissions):
+    """Rules that keep OpenCode's `.env` prompt after a blanket read allow.
+
+    Only for the scalar `read: allow` case. An explicit read map is the author's
+    decision about which paths to read, and is left alone.
+    """
+    return list(ENV_POLICY) if permissions.get("read") == "allow" else []
+
+
+def model_for(agent):
+    """Model selector for an agent: explicit target first, then its tier."""
+    return agent.target(NAME).get("model") or TIER_MODELS.get(agent.fm.get("model_tier"))
+
+
+def permission_rules(permissions, v2):
+    """Render the source permission map in the dialect the editor reads.
+
+    v1 keeps the `permission` map (OpenCode resolves it last-match-wins).
+    v2 wants an ordered `permissions` list; our maps already put the `"*"`
+    default first, so iteration order is the same precedence.
+    """
+    if v2:
+        rules = []
+        for cap, rule in permissions.items():
+            action = V2_ACTIONS.get(cap, cap)
+            if action in V2_RETIRED_ACTIONS:
+                effects = set(rule.values()) if isinstance(rule, dict) else {rule}
+                if effects - {"allow"}:
+                    # Dropping a deny would silently widen access; refuse instead.
+                    raise SystemExit(f"[eng]   FAIL: '{cap}' is not a V2 action, so its "
+                                     f"{sorted(effects - {'allow'})} rule cannot be expressed")
+                continue
+            if isinstance(rule, dict):
+                rules.extend({"action": action, "resource": res, "effect": eff}
+                             for res, eff in rule.items())
+            else:
+                rules.append({"action": action, "resource": "*", "effect": rule})
+        rules.extend({"action": "read", "resource": res, "effect": eff}
+                     for res, eff in env_policy(permissions))
+        if not rules:
+            raise SystemExit("[eng]   FAIL: every permission is a retired V2 action; nothing left to emit")
+        return rules
+
+    out = {}
+    for cap, rule in permissions.items():
+        if cap == "read" and isinstance(rule, str):
+            out[cap] = {"*": rule, **dict(env_policy(permissions))} if env_policy(permissions) else rule
+        else:
+            out[cap] = rule
+    return out
+
+
+def render_agent(agent, v2):
+    target = dict(agent.target(NAME))
     fm = {"description": agent.fm["description"], "mode": agent.fm["role"]}
-    fm.update(agent.target(NAME))
+    if v2 and "temperature" in target:
+        # V2 shapes this as a request overlay (its runner does not send it yet).
+        fm["request"] = {"body": {"temperature": target.pop("temperature")}}
+    fm.update(target)
+    model = model_for(agent)
+    if model:
+        # v1's compatibility loader drops `#variant`, so do not ship one there.
+        fm["model"] = model if v2 else model.split("#", 1)[0]
     if "permissions" in agent.fm:
-        fm["permission"] = agent.fm["permissions"]
+        fm["permissions" if v2 else "permission"] = permission_rules(agent.fm["permissions"], v2)
     return render_frontmatter(fm, agent.body)
 
 
-def render_command(cmd):
+def render_command(cmd, v2):
+    target = dict(cmd.target(NAME))
+    if v2 and "subtask" in target:
+        # `subtask` is the deprecated V1 alias; V2 wins if both are present.
+        target.setdefault("subagent", target.pop("subtask"))
     fm = {"description": cmd.fm["description"]}
-    fm.update(cmd.target(NAME))
+    fm.update(target)
     return render_frontmatter(fm, cmd.body)
 
 
@@ -87,13 +174,37 @@ def _ours(entry, ctx):
     return isinstance(entry, dict) and str(ctx.server) in " ".join(map(str, entry.get("command", [])))
 
 
-def configure(ctx, source):
-    cfg_path = config_dir(ctx) / CONFIG_FILE
-    cfg = load_json(cfg_path, jsonc=True)
-    original = repr(cfg)
+def _config(ctx):
+    """The OpenCode config, validating the shapes we merge into.
+
+    Runs before anything is written, so a broken config aborts the sync instead
+    of leaving agents updated and the config untouched.
+    """
+    path = config_dir(ctx) / CONFIG_FILE
+    cfg = load_json(path, jsonc=True)
     mcp = cfg.setdefault("mcp", {})
     if not isinstance(mcp, dict) or not isinstance(mcp.get("servers", {}), dict):
-        raise SystemExit(f"[eng]   FAIL: {cfg_path}: 'mcp' (or 'mcp.servers') is not an object; not touching it")
+        raise SystemExit(f"[eng]   FAIL: {path}: 'mcp' (or 'mcp.servers') is not an object; not touching it")
+    return cfg, mcp
+
+
+def agent_dialect(ctx, cfg, mcp):
+    """'v2' when the installed OpenCode reads V2 agents, else 'v1'.
+
+    Compatibility is one-way: V2 reads V1 agents, V1 cannot read V2
+    `permissions` lists. So the detected version wins when known, config shape is
+    only a hint, and the unknown case falls back to V1 — the dialect both
+    readers understand.
+    """
+    version = _major_version()
+    if version is not None:
+        return "v2" if version >= 2 else "v1"
+    return "v2" if isinstance(mcp.get("servers"), dict) else "v1"
+
+
+def configure(ctx, source, cfg, mcp):
+    cfg_path = config_dir(ctx) / CONFIG_FILE
+    original = repr(cfg)
     shape, reason = choose_shape(mcp, ctx, _major_version())
     log(NAME, f"MCP config shape {shape} ({reason})")
     v2 = shape == "v2"
@@ -123,18 +234,21 @@ def configure(ctx, source):
 
 def sync(ctx, source):
     root = config_dir(ctx)
+    cfg, mcp = _config(ctx)
+    v2 = agent_dialect(ctx, cfg, mcp) == "v2"
+    log(NAME, f"agents/commands in {'v2' if v2 else 'v1'} dialect")
     w = Writer(root, NAME, adopt_legacy=True)
     for a in source.agents:
-        w.write(root / "agents" / f"{a.name}.md", render_agent(a))
+        w.write(root / "agents" / f"{a.name}.md", render_agent(a, v2))
     for c in source.commands:
-        w.write(root / "commands" / f"{c.name}.md", render_command(c))
+        w.write(root / "commands" / f"{c.name}.md", render_command(c, v2))
     for s in source.skills:
         w.write(root / "skills" / s.name / "SKILL.md", render_skill(s))
         for rel, f in s.files:
             w.write(root / "skills" / s.name / rel, f.read_bytes())
     w.finish()
     log(NAME, f"{len(source.agents)} agents, {len(source.commands)} commands, {len(source.skills)} skills synced ({w.changed} files changed)")
-    log(NAME, configure(ctx, source))
+    log(NAME, configure(ctx, source, cfg, mcp))
 
 
 def health(ctx, source):

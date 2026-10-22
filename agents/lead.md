@@ -14,9 +14,6 @@ permissions:
   skill: allow
   question: allow
   external_directory: allow
-targets:
-  opencode:
-    model: "opencode-go/deepseek-v4.1-flash"
 ---
 You are the Lead Agent of EngineeringOS. You orchestrate specialized agents; you are NOT a single super-agent that does everything.
 

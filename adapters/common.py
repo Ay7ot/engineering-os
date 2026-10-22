@@ -22,6 +22,7 @@ MANIFEST = ".engineeringos-manifest.json"
 MCP_NAME = "engineering-memory"
 ROLES = ("primary", "subagent")
 MODEL_TIERS = ("deep", "standard", "fast")
+EFFECTS = ("allow", "ask", "deny")
 
 AGENT_KEYS = {"name", "description", "role", "model_tier", "permissions", "targets"}
 COMMAND_KEYS = {"description", "targets"}
@@ -37,9 +38,10 @@ def log(adapter, msg):
 
 
 # --- YAML subset ----------------------------------------------------------------
-# Supported: nested maps by indentation, quoted or bare keys, plain/quoted scalars,
-# folded (>, >-) and literal (|, |-) blocks, comments. Not supported (raises):
-# lists, flow collections, anchors/aliases, tabs, multi-document.
+# Supported: nested maps by indentation, block lists of scalars or maps, quoted or
+# bare keys, plain/quoted scalars, folded (>, >-) and literal (|, |-) blocks,
+# comments. Not supported (raises): flow collections, anchors/aliases, tabs,
+# multi-document.
 
 def _indent(line):
     return len(line) - len(line.lstrip(" "))
@@ -120,6 +122,57 @@ def _split_key(line, where):
     return k, rest
 
 
+def _is_map_item(item, where):
+    """True for `- key: value` (including a quoted key), False for `- scalar`."""
+    if item[:1] in ("\"", "'"):
+        try:
+            _, rest = _quoted(item, where)
+        except SourceError:
+            return False
+        return rest.strip().startswith(":")
+    return ":" in item
+
+
+def _parse_list(lines, i, indent, src, base, typed=False):
+    """Block sequence at `indent`: `- scalar`, or `- key: value` plus a nested map.
+
+    Items are re-indented to `indent + 2` and handed to _parse_block, so map items
+    reuse the whole map grammar (nested maps, quoted values, comments).
+    """
+    out = []
+    while i < len(lines):
+        line = lines[i]
+        where = f"{src}:{base + i + 1}"
+        if not line.strip() or line.lstrip().startswith("#"):
+            i += 1
+            continue
+        ind = _indent(line)
+        if ind < indent:
+            break
+        if ind > indent:
+            raise SourceError(f"{where}: unexpected indentation")
+        s = line.strip()
+        if not s.startswith("- "):
+            break
+        item = s[2:].strip()
+        j = i + 1
+        while j < len(lines) and lines[j].strip() and _indent(lines[j]) > indent:
+            j += 1
+        if _is_map_item(item, where):
+            block = [" " * (indent + 2) + item] + lines[i + 1:j]
+            val, end = _parse_block(block, 0, indent + 2, src, base + i, typed)
+            if end != len(block):
+                # A line indented less than the item's map would otherwise vanish.
+                raise SourceError(f"{where}: unexpected indentation in this list item")
+            out.append(val)
+        else:
+            if j > i + 1:
+                raise SourceError(f"{where}: a scalar list item cannot have nested lines")
+            out.append(_scalar(item, where, typed))
+        i = j
+    return out, i
+
+
 def _parse_block(lines, i, indent, src, base, typed=False):
     out = {}
     while i < len(lines):
@@ -136,7 +189,7 @@ def _parse_block(lines, i, indent, src, base, typed=False):
         if ind > indent:
             raise SourceError(f"{where}: unexpected indentation")
         if line.lstrip().startswith("- "):
-            raise SourceError(f"{where}: YAML lists are not supported; use a map or a comma-separated string")
+            raise SourceError(f"{where}: a list cannot be a mapping key's sibling; put it under a key")
         rawk, rest = _split_key(line, where)
         key, rest = _key(rawk, where), rest.strip()
         if key in out:
@@ -149,8 +202,13 @@ def _parse_block(lines, i, indent, src, base, typed=False):
                 i += 1
             out[key] = " ".join(b for b in buf if b) if rest.startswith(">") else "\n".join(buf).strip()
         elif rest == "" or rest.startswith("#"):
-            if i < len(lines) and lines[i].strip() and _indent(lines[i]) > ind:
-                out[key], i = _parse_block(lines, i, _indent(lines[i]), src, base, typed)
+            j = i
+            while j < len(lines) and (not lines[j].strip() or lines[j].lstrip().startswith("#")):
+                j += 1
+            if j < len(lines) and lines[j].strip() and _indent(lines[j]) > ind:
+                child = _indent(lines[j])
+                nested = _parse_list if lines[j].lstrip().startswith("- ") else _parse_block
+                out[key], i = nested(lines, j, child, src, base, typed)
             else:
                 out[key] = ""
         else:
@@ -209,6 +267,15 @@ def emit_yaml(mapping, indent=0):
         if isinstance(v, dict):
             out.append(f"{pad}{_emit_key(k)}:")
             out.append(emit_yaml(v, indent + 2))
+        elif isinstance(v, list):
+            out.append(f"{pad}{_emit_key(k)}:")
+            for item in v:
+                if isinstance(item, dict):
+                    lines = emit_yaml(item, indent + 4).splitlines()
+                    out.append(f"{pad}  - {lines[0].strip()}")
+                    out.extend(lines[1:])
+                else:
+                    out.append(f"{pad}  - {_emit_scalar(item)}")
         else:
             out.append(f"{pad}{_emit_key(k)}: {_emit_scalar(v)}")
     return "\n".join(line for line in out if line != "")
@@ -255,8 +322,10 @@ def _check_keys(fm, allowed, src):
     extra = set(fm) - allowed
     if extra:
         raise SourceError(f"{src}: unknown frontmatter keys {sorted(extra)} (allowed: {sorted(allowed)})")
-    if "targets" in fm and not isinstance(fm["targets"], dict):
-        raise SourceError(f"{src}: 'targets' must be a map of editor -> settings")
+    if "targets" in fm:
+        t = fm["targets"]
+        if not isinstance(t, dict) or not all(isinstance(v, dict) for v in t.values()):
+            raise SourceError(f"{src}: 'targets' must be a map of editor -> settings map")
 
 
 def load_source(root):
@@ -277,10 +346,17 @@ def load_source(root):
         if "permissions" in fm and not isinstance(fm["permissions"], dict):
             raise SourceError(f"{rel}: 'permissions' must be a map")
         for cap, rule in fm.get("permissions", {}).items():
-            if isinstance(rule, dict) and "*" in rule and next(iter(rule)) != "*":
-                # Editors differ on rule precedence (OpenCode: last match wins).
-                # A leading "*" default is the only shape every adapter reads the same way.
-                raise SourceError(f"{rel}: permissions.{cap}: the \"*\" default must be the first rule")
+            if isinstance(rule, dict):
+                if "*" in rule and next(iter(rule)) != "*":
+                    # Editors differ on rule precedence (OpenCode: last match wins).
+                    # A leading "*" default is the only shape every adapter reads the same way.
+                    raise SourceError(f"{rel}: permissions.{cap}: the \"*\" default must be the first rule")
+                bad = [k for k, v in rule.items() if v not in EFFECTS]
+                if bad:
+                    raise SourceError(f"{rel}: permissions.{cap}: effect for {bad} must be one of {EFFECTS}")
+            elif rule not in EFFECTS:
+                raise SourceError(f"{rel}: permissions.{cap}: must be one of {EFFECTS} "
+                                  "or a map of pattern -> effect")
         agents.append(Item(p.stem, fm, body, p))
     sroot = root / "skills"
     for d in sorted(x for x in sroot.iterdir() if x.is_dir()) if sroot.is_dir() else []:

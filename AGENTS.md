@@ -50,8 +50,8 @@ There is no build step and no package manager. Nothing to install.
 
 ## Conventions
 
-- **Markdown + editor-neutral frontmatter** (YAML subset: maps and scalars, no
-  lists). Agents: `name`, `description`, `role`, `model_tier`, `permissions`,
+- **Markdown + editor-neutral frontmatter** (YAML subset: maps, scalars and
+  block lists). Agents: `name`, `description`, `role`, `model_tier`, `permissions`,
   `targets.<editor>`. Skills: `name`, `description`. Commands: `description`,
   `targets.<editor>`. Full reference: `docs/adapters.md`.
 - **Conventional commits**: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`,
