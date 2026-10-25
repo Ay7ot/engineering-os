@@ -13,12 +13,14 @@ metadata:
 
 ## Procedure
 1. Check for context: `AGENTS.md`, `README.md`, and `~/EngineeringOS/data/projects/<name>/` (via `engineering-memory` `get_project_context`).
-2. Inventory: manifests (package.json, pyproject.toml, Cargo.toml, go.mod, etc.), config files, CI, top-level dirs.
-3. Read entry points and key modules. Trace the main data flow for the task area.
-4. Identify: conventions (naming, error handling, patterns), test framework + how to run tests, deployment setup, external services.
+2. Determine the workspace shape: `git status` (or `git rev-parse --is-inside-work-tree`). If git fails, treat the folder as non-git: detect embedded repos (`*/.git`, `*/*/.git`), map each separately, and never present git "fatal:" output as an error. An empty folder is a valid result ("no code yet").
+3. Inventory: manifests (package.json, pyproject.toml, Cargo.toml, go.mod, etc.), config files, CI, top-level dirs.
+4. Read entry points and key modules. Trace the main data flow for the task area.
+5. Identify: conventions (naming, error handling, patterns), test framework + how to run tests, deployment setup, external services.
 
 ## Output: repository map
 - Overview (1 paragraph)
+- Workspace shape (git repo or non-git folder; embedded repos with remotes/branches; which folders are repos vs working docs)
 - Stack (languages, frameworks, key deps with versions)
 - Structure (top-level layout + where relevant code lives)
 - Data flow / architecture

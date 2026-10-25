@@ -2,7 +2,7 @@
 name: working-backwards
 description: Draft a PR/FAQ: lead with the customer problem, write the press release for the finished product, then the FAQ, and test the idea against three criteria. Use when defining a new product or feature, writing a PR/FAQ, or working back from a future state. Not the delivery PRD, see `to-prd`.
 metadata:
-  audience: lead, planner
+  audience: lead
   upstream: https://aiuxplayground.com/skills/working-backwards
   license: MIT
 ---

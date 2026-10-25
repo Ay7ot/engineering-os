@@ -2,7 +2,7 @@
 name: diagrams
 description: Author clear, correct, portable Mermaid diagrams for architecture, planning, and explanation. Use when producing architecture proposals, implementation plans, ADRs, runbooks, or explaining a system, flow, state machine, or change visually.
 metadata:
-  audience: architect, planner, lead, builder
+  audience: architect, lead, builder
 ---
 # Diagrams (Mermaid)
 

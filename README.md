@@ -15,8 +15,9 @@ local MCP server.
 - **No dependencies.** The MCP server and the editor adapters are stdlib-only
   Python, and the CLI is one `bash` entry point. Nothing to `pip install`, no
   daemon, no cloud.
-- **Agents with defined jobs.** A lead orchestrator delegates to specialized
-  read-only and write agents instead of one super-agent doing everything.
+- **One loop, many skills.** The lead agent holds the context and loads skills
+  on demand. The few subagents that remain exist for isolation, independence and
+  parallelism, not to mirror a job title.
 - **Any editor.** Agents, skills and commands are written once in an
   editor-neutral format; adapters install them into OpenCode and Claude Code
   today, and more editors are one adapter each.
@@ -175,19 +176,28 @@ EngineeringOS memory.
 ## The agents
 
 The lead agent classifies each task and picks the smallest safe workflow, so a
-typo fix does not spin up nine agents.
+typo fix does not spin up the whole cast. Procedure lives in skills, not in agent
+prompts: an agent loads the playbook it needs (`project-planning`,
+`architecture-analysis`, `code-review`, `testing`) instead of carrying a
+permanent copy.
 
 | Agent | Role | Model tier | What it does | Can write code? |
 |---|---|---|---|---|
-| **lead** | primary | deep | Orchestrates; classifies complexity; delegates; manages approval gates; final report | yes |
+| **lead** | primary | deep | Main loop: classifies complexity, loads skills, delegates only when isolation, independence or parallelism pays, manages approval gates, reports evidence | yes |
 | **researcher** | subagent | standard | Technical research from primary sources; persists reusable findings | no (writes research only) |
 | **explorer** | subagent | fast | Maps repositories and non-git workspaces; produces repo maps, not dumps | no |
-| **architect** | subagent | deep | Architecture proposals, alternatives, tradeoffs, ADRs, diagrams | markdown only |
-| **planner** | subagent | standard | Turns approved architecture into small, verifiable tasks | no |
-| **builder** | subagent | standard | Implements the approved plan; stops and reports on architectural problems | yes |
-| **tester** | subagent | standard | Writes tests, runs typecheck/lint/test/build, reports PASS/FAIL evidence | tests only |
+| **architect** | subagent | deep | Architecture proposals, alternatives, tradeoffs, ADRs, diagrams; used for complex or novel design | markdown only |
+| **builder** | subagent | standard | Implements the approved plan and proves it with tests; stops and reports on architectural problems | yes |
+| **tester** | subagent | standard | Independent verification for Important and Complex work; reports PASS/FAIL evidence | tests only |
 | **reviewer** | subagent | deep | Adversarial review; finds reasons NOT to merge | no |
 | **security** | subagent | deep | Security review of auth, data, secrets, injection, dependencies | no |
+
+Subagents are deliberately few. The lead keeps the work unless one of three
+conditions holds: it would flood its context (mapping a large repo, a large
+design, long research), the check must not share its context or write access (review,
+security, final verification), or the work can run in parallel with separate
+write scopes. Everything else is a skill, so a new capability is a markdown
+file, not a new agent.
 
 The primary role becomes OpenCode's default agent and Claude Code's default
 output style. Each editor maps the model tier to its own models (see
@@ -205,14 +215,19 @@ the same rules and blocks on any error.
 | Complexity | Workflow |
 |---|---|
 | Simple | Do it directly, verify |
-| Moderate | builder → tester |
-| Important | explorer → builder → reviewer → tester |
-| Complex | researcher + explorer → architect → **human gate** → planner → builders (parallel worktrees) → tester → reviewer → security → **human gate** if needed |
+| Moderate | implement (lead or builder), tests inline, spot-check the diff |
+| Important | explorer (if unmapped) → builder → tester → reviewer |
+| Complex | researcher + explorer → architecture (lead by default; architect when the design is large or novel) → **human gate** → plan (`project-planning` skill) → builders (parallel worktrees) → tester → reviewer → security → **human gate** if needed |
 
 The human gate always stops for: major architecture decisions, destructive DB
 migrations, production deploys, security-sensitive changes, irreversible data
 operations, significant infrastructure changes, major product behavior, and
 substantial cost. Everything else is inferred autonomously.
+
+`evals/` holds a deterministic task-completion harness for comparing two agent
+configurations (ten tasks, baseline vs current, pass rate plus cost and token
+counts). It calls real models, so it is not part of CI. See
+[evals/README.md](evals/README.md).
 
 ---
 
@@ -385,7 +400,7 @@ only if you have not set your own.
 ~/EngineeringOS/
   PRINCIPLES.md          global engineering rules every agent follows
   USER.example.md        template for your private operator profile
-  agents/                editor-neutral agent definitions (lead + 8 subagents)
+  agents/                editor-neutral agent definitions (lead + 7 subagents)
   skills/<name>/         playbooks (SKILL.md)
   commands/              slash-command workflows
   adapters/              common.py (shared layer) + one folder per editor
@@ -393,6 +408,7 @@ only if you have not set your own.
   scripts/               eng (CLI) and eos_sync.py (sync/health)
   templates/             seeds for a new data directory
   tests/                 hermetic tests run by CI (+ golden fixtures)
+  evals/                 agent evals, baseline vs current (not CI; costs tokens)
   docs/                  architecture, adapter guide, design docs, ADRs
   data/                  your private data (gitignored; see below)
 ```
@@ -461,8 +477,8 @@ A maintainer reviews and approves. On approval, any new push dismisses the
 approval, so what is reviewed is exactly what merges. Then it is squash-merged.
 
 CI runs `bash -n scripts/eng`, `python3 -m py_compile`, `tests/test_eng.sh`, `tests/test_adapters.py`, `tests/test_claude_sync.sh`,
-`tests/test_mcp.sh`, and `tests/test_ruleset.py`. Run the same tests locally
-before you push and CI should be green.
+`tests/test_mcp.sh`, `tests/test_ruleset.py`, and `tests/test_evals.py`. Run the
+same tests locally before you push and CI should be green.
 
 Maintainers apply protection changes with:
 

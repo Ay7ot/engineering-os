@@ -24,6 +24,9 @@ __pycache__/
 .venv/
 venv/
 
+# Agent eval work root, if EOS_EVAL_WORK is pointed inside the repo
+evals/.work/
+
 # Node
 node_modules/
 

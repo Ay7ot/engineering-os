@@ -40,5 +40,8 @@ jobs:
       - name: MCP tests
         run: bash tests/test_mcp.sh
 
+      - name: Agent eval harness self-check
+        run: python3 tests/test_evals.py
+
       - name: Ruleset config guard
         run: python3 tests/test_ruleset.py

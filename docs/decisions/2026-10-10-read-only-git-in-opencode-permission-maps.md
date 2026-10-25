@@ -2,6 +2,9 @@
 
 - **Date:** 2026-10-10
 - **Status:** Accepted
+- **Note (2026-10-25):** the golden test no longer pins agent bodies. It pins the
+  translated frontmatter and asserts the body passes through verbatim. See
+  [Fold the planner and move agent procedure into skills](2026-10-25-fold-planner-and-move-agent-procedure-into-skills.md).
 - **Deciders:** Operator (Ay7ot)
 - **Project:** engineering-os
 - **Builds on:** [Keep read-only agent lockdown](2026-09-10-keep-read-only-agent-lockdown-fix-prompts-instead-.md),

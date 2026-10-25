@@ -2,7 +2,7 @@
 name: customer-journey-map
 description: Map a customer journey stage by stage with touchpoints, thoughts, emotions, pain points, and opportunities. Use when mapping the customer experience, finding friction or drop-off, or improving onboarding and retention. Not for running the interviews, see `user-research`.
 metadata:
-  audience: lead, planner, researcher
+  audience: lead, researcher
   upstream: https://github.com/phuryn/pm-skills
   license: MIT
 ---

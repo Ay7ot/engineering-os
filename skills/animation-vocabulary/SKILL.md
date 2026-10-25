@@ -2,7 +2,7 @@
 name: animation-vocabulary
 description: Reverse-lookup glossary that turns a vague description of a web effect into its exact term (the bouncy popover that grows from its trigger is Pop in; the iOS overscroll feel is Rubber-banding). Use when asked what a motion effect is called, or when describing one without knowing its name.
 metadata:
-  audience: lead, planner, builder
+  audience: lead, builder
   upstream: https://github.com/emilkowalski/skills/tree/main/skills/animation-vocabulary
   license: MIT
 ---

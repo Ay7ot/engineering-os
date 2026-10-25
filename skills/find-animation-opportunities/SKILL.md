@@ -2,7 +2,7 @@
 name: find-animation-opportunities
 description: Search a codebase or UI for places that do not animate but should, and reject everything that should not; read-only, proposing motion with exact values. Use when asked what could be animated here, or how to make this feel more alive. For fixing existing motion use `improve-animations`.
 metadata:
-  audience: planner, builder, lead
+  audience: builder, lead
   upstream: https://github.com/emilkowalski/skills/tree/main/skills/find-animation-opportunities
   license: MIT
 ---

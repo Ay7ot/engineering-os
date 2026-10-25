@@ -2,7 +2,7 @@
 name: wayfinder
 description: Chart a shared map of investigation tickets on the issue tracker for work too big for one agent session, then resolve them one at a time until the route is clear. Use when a loose idea is wrapped in fog and the destination is not yet visible.
 metadata:
-  audience: planner, lead, architect
+  audience: lead, architect
   upstream: https://github.com/mattpocock/skills/tree/main/skills/engineering/wayfinder
   license: MIT
 ---
