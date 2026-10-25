@@ -2,7 +2,7 @@
 name: product-manager-toolkit
 description: Priorise a backlog with RICE, value versus effort and MoSCoW, run discovery interviews, and shape a PRD. Use when scoring or sequencing product work, planning capacity, or sizing a feature portfolio. Not for the delivery spec, see `to-prd`.
 metadata:
-  audience: lead, planner
+  audience: lead
   upstream: https://github.com/sickn33/antigravity-awesome-skills
   license: MIT
 ---

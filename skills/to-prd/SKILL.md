@@ -2,7 +2,7 @@
 name: to-prd
 description: Turn the current conversation and codebase knowledge into a PRD, then publish it to the issue tracker. Use when asked to create a PRD from context already in the session. Not for architecture proposals or implementation plans.
 metadata:
-  audience: planner, lead
+  audience: lead
   upstream: https://github.com/mattpocock/skills
   license: MIT
 ---

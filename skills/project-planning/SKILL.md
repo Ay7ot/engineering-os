@@ -2,7 +2,7 @@
 name: project-planning
 description: Turn approved architecture into small, verifiable implementation tasks with dependencies and acceptance criteria. Use before delegating implementation.
 metadata:
-  audience: planner, lead
+  audience: lead
 ---
 # Project Planning
 
@@ -15,7 +15,7 @@ metadata:
 - Explicit dependencies between tasks; no silent coupling.
 - Acceptance criteria per task, verifiable deterministically (tests, typecheck, lint, build).
 - Phases ordered by dependency and risk; de-risk early (build the risky/thin slice first).
-- Identify parallelizable tasks; create each worktree with `eng worktree new` (branch/worktree naming stays as-is) and track explicit ownership/branch/worktree/dependencies/merge state.
+- Identify parallelizable tasks; specify each worktree with `eng worktree new` (branch/worktree naming stays as-is) for the lead or builder to create, and track explicit ownership/branch/worktree/dependencies/merge state. This skill grants no shell access; if your agent cannot run bash, put the exact commands in the plan.
 - Register tasks on the blackboard (`engineering-memory` `record_task`) with owner + status.
 - Keep IN/OUT of scope explicit.
 

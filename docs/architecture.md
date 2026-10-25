@@ -68,16 +68,37 @@ design and its tradeoffs.
 ## Flows
 
 1. **Intent** → lead agent clarifies only what needs human judgment.
-2. **Research** → researcher + explorer inspect repo, EngineeringOS memory, and
-   primary sources; findings persisted via `record_research`.
-3. **Architecture** → architect proposes options/tradeoffs; human gate for
-   consequential decisions (ADRs via `record_decision`).
-4. **Plan** → planner decomposes into small, verifiable tasks with acceptance
-   criteria.
-5. **Implement** → builder works in isolated git worktrees (`eng worktree`).
-6. **Verify** → tester runs typecheck/lint/test/build and reports evidence.
+2. **Research** → the lead searches EngineeringOS memory and primary sources;
+   the researcher or explorer is used when the work needs an isolated context.
+   Findings persisted via `record_research`.
+3. **Architecture** → the lead loads the `architecture-analysis` skill, or the
+   architect for complex or novel design; human gate for consequential decisions
+   (ADRs via `record_decision`).
+4. **Plan** → the lead writes the plan with the `project-planning` skill: small,
+   verifiable tasks with acceptance criteria.
+5. **Implement** → the lead or a builder works in an isolated git worktree
+   (`eng worktree`).
+6. **Verify** → builder runs tests inline for Moderate work; the tester verifies
+   independently for Important and Complex work and reports evidence.
 7. **Review** → reviewer and security review adversarially before merge.
 8. **State** → project state and knowledge updated via MCP.
+
+## Subagent policy
+
+A subagent gets its own context window only when one of three conditions holds:
+
+- **Isolation** — the work would flood the main context (large repo map, long
+  research, noisy verification).
+- **Independence** — the check must not share the main context or write access
+  (adversarial review, security review, final verification).
+- **Parallelism** — independent tasks with separate write scopes.
+
+Every other responsibility is a skill loaded on demand. Design is not a fourth
+reason: the lead loads `architecture-analysis` and spawns the architect only
+when the design is large enough to isolate or needs an independent read. The
+read-only agents stay read-only at the permission level, and that boundary is
+the reason they exist as separate agents rather than as prompts in the main
+loop.
 
 ## Security posture
 

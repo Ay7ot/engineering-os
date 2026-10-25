@@ -2,7 +2,7 @@
 name: theme-factory
 description: Style an artifact with a designed theme, one cohesive palette plus a heading and body font pairing, chosen from a set of presets or generated to fit. Use when a slide deck, doc, report or HTML page needs a consistent look. Not for a fixed corporate palette (`brand-guidelines`).
 metadata:
-  audience: builder, planner
+  audience: builder
   upstream: https://github.com/anthropics/skills/tree/main/skills/theme-factory
   license: Apache-2.0
 ---

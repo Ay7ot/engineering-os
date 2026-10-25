@@ -115,7 +115,7 @@ check("emit -> parse preserves values and key order", not bad, bad)
 check("numbers and booleans emitted unquoted", emit_yaml({"t": "0.1", "s": "false"}) == "t: 0.1\ns: false")
 
 print("test_adapters: source validation")
-check("source loads", len(src.agents) == 9 and len(src.commands) == 6 and len(src.skills) >= 17,
+check("source loads", len(src.agents) == 8 and len(src.commands) == 6 and len(src.skills) >= 17,
       (len(src.agents), len(src.commands), len(src.skills)))
 check("exactly one primary agent (lead)", [a.name for a in src.primary()] == ["lead"])
 check("no editor-specific keys at top level",
@@ -185,9 +185,11 @@ check("all expected skills present",
       <= {s.name for s in src.skills})
 
 print("test_adapters: OpenCode golden (agents/commands vs pre-migration files; skills pass through)")
-# Intended changes since the fixtures were captured. The golden compares each
-# rendered agent with its fixture after applying exactly these edits, so any
-# other drift (a dropped rule, a reorder, a stray prompt edit) still fails.
+# Intended changes since the fixtures were captured. The golden pins the
+# translated frontmatter (mode, model, permission, request) after applying
+# exactly these edits. The body is asserted to pass through verbatim; prompt
+# content is deliberately not pinned. Prompt drift is caught in review plus the
+# REQUIRED_SKILLS checks, not here.
 # bash: rules removed in place, then new rules appended in order.
 GIT_BRANCH_READ = ["git branch", "git branch -a", "git branch -r", "git branch -v", "git branch -vv",
                    "git branch --show-current", "git branch --list *", "git branch --contains *",
@@ -203,40 +205,23 @@ def allows(*keys):
     return [(k, "allow") for k in keys]
 
 
-EXPLORER_TOOLS_OLD = "(`status`, `rev-parse`, `log`, `branch`, `remote`, `ls-files`)."
-EXPLORER_TOOLS_NEW = ("(`status`, `rev-parse`, `log`, `ls-files`, listing forms of `branch` such as "
-                      "`git branch -a` / `git branch --list <pattern>`, and `git remote -v` / "
-                      "`git remote get-url <name>`). Anything that changes branches, remotes, or writes "
-                      "files (e.g. `git branch -D`, `git remote set-url`, `git log --output`) is denied.")
-RESEARCHER_RISKS = "- Identify risks and limitations, not just answers.\n"
-RESEARCHER_TOOLS = (
-    "- TOOL RESTRICTIONS (by design): `bash` is limited to read-only git inspection of local repos "
-    "(`log`, `show`, `diff`, `status`, `rev-parse`, `ls-files`, `describe`, listing forms of "
-    "`branch`/`tag`, `git remote -v`) and `opencode mcp`. Do not clone, fetch, or change any repo; "
-    "read upstream source through `webfetch` (e.g. raw GitHub files) instead.\n")
-BUILDER_ANCHOR = "- Do not add code comments unless they explain non-obvious rationale the task requires.\n"
-BUILDER_SIMPLIFY = ("- Before handing off for review, run the `simplify` skill on your change "
-                    "(behaviour must not change; report what you leave alone).\n")
-BUILDER_TDD = ("- Before writing implementation code, use the `test-driven-development` skill (write a failing "
-               "test first). Keep the change minimal and surgical (`karpathy-guidelines`), and report fresh "
-               "command output before claiming anything passes (`verification-before-completion`).\n")
-TESTER_ANCHOR = ("- If you cannot run a required verification (missing command, env, credentials), "
-                 "say so explicitly rather than guessing.\n")
-TESTER_RUN_FOR_REAL = ('- For user-visible changes, follow the "Run it for real" steps in the `testing` skill. '
-                       "Prove the environment is safe first (no production or shared data, test-mode keys, "
-                       "outbound messaging off); if you cannot, stop and report.\n")
-TESTER_VERIFY = ("- Never report a check as passing without the fresh command output in hand "
-                 "(`verification-before-completion`).\n")
-LEAD_ANCHOR = ("- Understand the request, explore, search EngineeringOS, research unfamiliar tech, produce "
-               "architecture proposal when appropriate, wait for approval when required, create implementation "
-               "plan, delegate implementation, run verification, run review, run security review when relevant, "
-               "update project knowledge (record decisions/research/state via MCP), produce a concise final report.\n")
-LEAD_MEMORY_HYGIENE = ("- When memory search returns conflicting answers, or after a large refactor, run the "
-                       "`memory-hygiene` skill (report first, apply only after approval).\n")
+# 2026-10-25: agent bodies are no longer compared to the frozen fixture. The
+# fixture still pins the v1 permission map each agent must render; the body is
+# asserted to pass through verbatim. Procedure now lives in skills, so the
+# requirement checks below point at the skill each agent must reference.
+REQUIRED_SKILLS = {
+    "lead": ["project-planning", "architecture-analysis", "memory-hygiene", "diagrams"],
+    "builder": ["test-driven-development", "simplify", "verification-before-completion"],
+    "explorer": ["repository-exploration"],
+    "researcher": ["technical-research"],
+    "architect": ["architecture-analysis", "diagrams"],
+    "reviewer": ["code-review", "security-review"],
+    "security": ["security-review"],
+    "tester": ["testing", "verification-before-completion"],
+}
 FIXTURE_DELTAS = {  # 2026-10-10: read-only agents get read-only git in OpenCode too
     "explorer": {"bash_remove": ["git branch *", "git remote *"],
-                 "bash_add": allows(*GIT_BRANCH_READ, *GIT_REMOTE_READ) + no_git_writes("log"),
-                 "body": [(EXPLORER_TOOLS_OLD, EXPLORER_TOOLS_NEW)]},
+                 "bash_add": allows(*GIT_BRANCH_READ, *GIT_REMOTE_READ) + no_git_writes("log")},
     "reviewer": {"bash_remove": ["git branch *"],
                  "bash_add": allows(*GIT_BRANCH_READ) + no_git_writes("diff", "log", "show")},
     "security": {"bash_add": no_git_writes("diff", "log", "show")},
@@ -244,16 +229,8 @@ FIXTURE_DELTAS = {  # 2026-10-10: read-only agents get read-only git in OpenCode
                    "bash_add": allows("git status *", "git rev-parse *", "git log *", "git show *",
                                       "git diff *", "git ls-files *", "git describe *", "git tag",
                                       "git tag --list *", "git tag -l *", *GIT_BRANCH_READ,
-                                      *GIT_REMOTE_READ) + no_git_writes("diff", "log", "show"),
-                   "body": [(RESEARCHER_RISKS, RESEARCHER_RISKS + RESEARCHER_TOOLS)]},
+                                      *GIT_REMOTE_READ) + no_git_writes("diff", "log", "show")},
     "architect": {"bash_add": no_git_writes("log")},
-    # 2026-10-10: wire the new skills into the workflow
-    # 2026-10-12: wire test-driven-development / karpathy-guidelines / verification-before-completion
-    "builder": {"body": [(BUILDER_ANCHOR, BUILDER_ANCHOR + BUILDER_SIMPLIFY),
-                         (BUILDER_SIMPLIFY, BUILDER_SIMPLIFY + BUILDER_TDD)]},
-    "tester": {"body": [(TESTER_ANCHOR, TESTER_ANCHOR + TESTER_RUN_FOR_REAL),
-                        (TESTER_RUN_FOR_REAL, TESTER_RUN_FOR_REAL + TESTER_VERIFY)]},
-    "lead": {"body": [(LEAD_ANCHOR, LEAD_ANCHOR + LEAD_MEMORY_HYGIENE)]},
 }
 
 # 2026-10-21: model_tier resolves to an OpenCode selector. The fixture golden
@@ -272,7 +249,7 @@ def legacy(selector):
 MODEL_DELTAS = {name: legacy(model) for name, model in {
     "lead": TIER_MODEL["deep"], "architect": TIER_MODEL["deep"],
     "reviewer": TIER_MODEL["deep"], "security": TIER_MODEL["deep"],
-    "builder": TIER_MODEL["standard"], "planner": TIER_MODEL["standard"],
+    "builder": TIER_MODEL["standard"],
     "researcher": TIER_MODEL["standard"], "tester": TIER_MODEL["standard"],
     "explorer": TIER_MODEL["fast"],
 }.items()}
@@ -304,10 +281,10 @@ def with_read_policy(fm):
     return dict(fm, permission=perms)
 
 
-def apply_delta(name, fm, body, problems):
+def apply_delta(name, fm, problems):
     d = FIXTURE_DELTAS.get(name)
     if not d:
-        return fm, body
+        return fm
     if d.get("bash_remove") or d.get("bash_add"):
         bash = dict(fm["permission"]["bash"])
         for k in d.get("bash_remove", []):
@@ -319,31 +296,49 @@ def apply_delta(name, fm, body, problems):
                 problems.append(f"delta for {name}: {k!r} already in fixture")
             bash[k] = v
         fm = dict(fm, permission=dict(fm["permission"], bash=bash))
-    for a, b in d.get("body", []):
-        if body.count(a) != 1:
-            problems.append(f"delta for {name}: body text not found exactly once: {a[:40]!r}")
-        body = body.replace(a, b, 1)
-    return fm, body
+    return fm
 
 
 mism, delta_problems = [], []
 for a in src.agents:
     # typed=True: 0.1 / false must stay number / bool, not become "0.1" / "false"
-    new = parse_frontmatter(oc.render_agent(a, v2=False), typed=True)
-    old = parse_frontmatter((FIXTURES / "agents" / f"{a.name}.md").read_text(), typed=True)
-    old_fm, old_body = apply_delta(a.name, *old, delta_problems)
+    new_fm, new_body = parse_frontmatter(oc.render_agent(a, v2=False), typed=True)
+    old_fm, _ = parse_frontmatter((FIXTURES / "agents" / f"{a.name}.md").read_text(), typed=True)
+    # `description` is source text passed through verbatim, like the body. The
+    # fixture pins the translated fields (mode, model, permission, request).
+    new_desc, old_desc = new_fm.pop("description"), old_fm.pop("description")
+    old_fm = apply_delta(a.name, old_fm, delta_problems)
     if a.name in MODEL_DELTAS:
         old_fm = with_model(old_fm, MODEL_DELTAS[a.name])
     old_fm = with_read_policy(old_fm)
-    if ordered(new[0]) != ordered(old_fm) or new[1] != old_body:
+    if (ordered(new_fm) != ordered(old_fm) or new_body != a.body
+            or new_desc != a.fm["description"]):
         mism.append(f"agents/{a.name}")
 for c in src.commands:
-    new = parse_frontmatter(oc.render_command(c, v2=False), typed=True)
-    old = parse_frontmatter((FIXTURES / "commands" / f"{c.name}.md").read_text(), typed=True)
-    if ordered(new[0]) != ordered(old[0]) or new[1] != old[1]:
+    new_fm, new_body = parse_frontmatter(oc.render_command(c, v2=False), typed=True)
+    old_fm, _ = parse_frontmatter((FIXTURES / "commands" / f"{c.name}.md").read_text(), typed=True)
+    new_desc, old_desc = new_fm.pop("description"), old_fm.pop("description")
+    if (ordered(new_fm) != ordered(old_fm) or new_body != c.body
+            or new_desc != c.fm["description"]):
         mism.append(f"commands/{c.name}")
 check("fixture deltas apply cleanly", not delta_problems, delta_problems)
-check("every agent and command matches its fixture + declared deltas (typed, order-sensitive)", not mism, mism)
+check("agent and command frontmatter matches its fixture + deltas; bodies pass through verbatim",
+      not mism, mism)
+by_name = {a.name: a for a in src.agents}
+check("each agent references the skill that holds its procedure",
+      not any(f"`{x}`" not in a.body for a in src.agents for x in REQUIRED_SKILLS.get(a.name, [])),
+      {a.name: [x for x in REQUIRED_SKILLS.get(a.name, []) if f"`{x}`" not in a.body] for a in src.agents})
+check("every agent is covered by REQUIRED_SKILLS",
+      set(REQUIRED_SKILLS) == set(by_name), sorted(set(REQUIRED_SKILLS) ^ set(by_name)))
+known_skills = {s.name for s in src.skills}
+check("every skill an agent points at exists",
+      not any(s not in known_skills for ss in REQUIRED_SKILLS.values() for s in ss),
+      {n: [s for s in ss if s not in known_skills] for n, ss in REQUIRED_SKILLS.items()})
+check("every agent has a fixture and every fixture has an agent",
+      {p.stem for p in (FIXTURES / "agents").glob("*.md")} == set(by_name),
+      sorted({p.stem for p in (FIXTURES / "agents").glob("*.md")} ^ set(by_name)))
+check("planner is folded into the lead loop",
+      "planner" not in by_name and "`project-planning`" in by_name["lead"].body, sorted(by_name))
 check("no current skill uses targets (pass-through below is exercised)", all("targets" not in s.fm for s in src.skills))
 with tempfile.TemporaryDirectory() as t:
     eng = Path(t)

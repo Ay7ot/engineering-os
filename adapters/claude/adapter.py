@@ -152,7 +152,8 @@ def model_for(agent):
 
 def render_agent(agent, rel_source, py, protect):
     disallowed, hooks = translate_permissions(agent.fm.get("permissions"), py, protect)
-    out = ["---", f"name: {agent.name}", f"description: {q(agent.fm['description'])}", f"model: {model_for(agent)}"]
+    out = ["---", f"name: {agent.name}",
+           f"description: {q(rename_refs(agent.fm['description']))}", f"model: {model_for(agent)}"]
     if disallowed:
         out.append("disallowedTools: " + ", ".join(disallowed))
     if hooks:
@@ -178,7 +179,7 @@ def render_skill(name, skill):
 
 
 def render_command(cmd):
-    out = ["---", f"description: {q(cmd.fm.get('description', ''))}", "---"]
+    out = ["---", f"description: {q(rename_refs(cmd.fm.get('description', '')))}", "---"]
     return "\n".join(out) + "\n" + rename_refs(cmd.body)
 
 

@@ -50,15 +50,16 @@ if python3 -m py_compile "$REPO_ROOT/adapters/claude/adapter.py" "$REPO_ROOT/scr
 
 echo "test_claude_sync: first sync"
 out="$("$ENG" sync-claude 2>&1 || true)"
-expect_contains "sync reports agents" "8 agents" "$out"
+expect_contains "sync reports agents" "7 agents" "$out"
 expect_contains "sync configures MCP" "configured engineering-memory MCP" "$out"
 expect_contains "sync reports skipped user file" "SKIPPED $C/skills/testing/SKILL.md" "$out"
 expect_contains "user skill not clobbered" "mine" "$(cat "$C/skills/testing/SKILL.md")"
 expect_contains "sets default output style" "set default outputStyle" "$out"
 
-for a in architect builder explorer planner researcher reviewer security tester; do
+for a in architect builder explorer researcher reviewer security tester; do
   expect_file "agent $a generated" "$C/agents/$a.md"
 done
+expect_nofile "folded planner is not installed" "$C/agents/planner.md"
 expect_nofile "lead is not a subagent (it lives in CLAUDE.md)" "$C/agents/lead.md"
 expect_file "user agent untouched" "$C/agents/mine.md"
 
@@ -75,8 +76,9 @@ expect_missing "builder has no guard" "eos_guard" "$builder"
 
 architect="$(cat "$C/agents/architect.md")"
 expect_contains "architect edits limited to markdown" "edit --allow '*.md'" "$architect"
-planner="$(cat "$C/agents/planner.md")"
-expect_contains "planner bash denied" "Bash" "$(grep '^disallowedTools' "$C/agents/planner.md")"
+reviewer="$(cat "$C/agents/reviewer.md")"
+expect_contains "reviewer cannot edit" "disallowedTools: Edit, Write, NotebookEdit" "$reviewer"
+expect_contains "reviewer bash guarded" "eos_guard.py bash --allow 'git diff *'" "$reviewer"
 
 expect_file "renamed skill eos-security-review" "$C/skills/eos-security-review/SKILL.md"
 expect_file "renamed skill eos-code-review" "$C/skills/eos-code-review/SKILL.md"

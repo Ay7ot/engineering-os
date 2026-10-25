@@ -156,7 +156,7 @@ plus a line in the registry, tests, and docs.
 | Failure | Mitigation |
 |---|---|
 | Neutral file uses YAML the parser cannot read | Loader raises with file:line; sync aborts before writing anything |
-| OpenCode output drifts semantically | Golden test: render vs frozen fixtures of the pre-migration `opencode/` files, compared as parsed frontmatter + body |
+| OpenCode output drifts semantically | Golden test: render vs frozen fixtures of the pre-migration `opencode/` files, compared as parsed frontmatter (mode, model, permission, request). The body is asserted to pass through verbatim; prompt content is not pinned, so prompt drift is a review concern |
 | Permission rule order changes meaning | Emitter preserves key order; golden test compares ordered maps |
 | Numbers/booleans emitted as strings (`temperature: "0.1"`) | Emitter writes numeric/boolean scalars unquoted; golden test parses with `typed=True`, so quoting drift fails it |
 | First OpenCode sync skips files written by the old sync | `adopt_legacy` when no manifest exists |
@@ -174,7 +174,9 @@ tests move with them and stay in CI. Nothing new is sent off the machine.
 ## Testing strategy
 
 1. Unit: parser/emitter round trip, loud failures, permission translation.
-2. Golden: OpenCode adapter output == frozen pre-migration fixtures (semantic).
+2. Golden: OpenCode adapter frontmatter == frozen pre-migration fixtures
+   (semantic); agent and command bodies pass through verbatim. The golden does
+   not pin prompt content.
 3. Existing Claude sync suite, repointed to the new paths (86 checks).
 4. Hermetic `eng` tests for `sync`, aliases, `health`.
 5. Live verification on the operator machine: snapshot `opencode debug agents`

@@ -2,7 +2,7 @@
 name: scoping-cutting
 description: Scope and cut a version to fit a fixed time budget, using appetite, an MVP as a hypothesis test, and aggressive cutting. Use when defining an MVP, fighting scope creep, or deciding what to drop to ship sooner. Not for sequencing the build, see `project-planning`.
 metadata:
-  audience: lead, planner
+  audience: lead
   upstream: https://aiuxplayground.com/skills/scoping-cutting
   license: MIT
 ---

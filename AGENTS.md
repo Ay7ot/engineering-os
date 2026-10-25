@@ -15,7 +15,7 @@ a separate data directory (`$ENGINEERING_OS_DATA`, default `~/EngineeringOS/data
 |---|---|
 | `PRINCIPLES.md` | Global engineering principles agents must follow |
 | `USER.example.md` | Template for the private operator profile (`<data>/USER.md`) |
-| `agents/*.md` | Editor-neutral agent definitions (lead + 8 subagents) |
+| `agents/*.md` | Editor-neutral agent definitions (lead + 7 subagents) |
 | `skills/*/SKILL.md` | Reusable task playbooks |
 | `commands/*.md` | Slash-command workflows |
 | `adapters/common.py` | Shared adapter layer: source loader/validator, YAML subset, ownership-tracked Writer, JSON helpers |
@@ -26,6 +26,7 @@ a separate data directory (`$ENGINEERING_OS_DATA`, default `~/EngineeringOS/data
 | `adapters/claude/hooks/eos_guard.py` | PreToolUse guard enforcing agent bash/edit allowlists in Claude Code |
 | `tests/fixtures/opencode-v1/` | Frozen pre-migration OpenCode files; golden reference for the OpenCode adapter |
 | `tests/` | Hermetic tests. These are what CI runs |
+| `evals/` | Agent evals: 10 deterministic tasks, baseline vs current. Not CI; costs model tokens |
 | `templates/` | Seed files copied into a fresh data directory |
 | `docs/` | `architecture.md`, `adapters.md` (adapter guide), `design/`, and framework ADRs in `decisions/` |
 | `.github/ruleset.json` | Branch-protection source of truth for `main` |
@@ -39,6 +40,7 @@ python3 tests/test_adapters.py  # neutral source, shared layer, OpenCode golden 
 bash tests/test_claude_sync.sh  # Claude Code adapter + guard tests
 bash tests/test_mcp.sh          # MCP server tests
 python3 tests/test_ruleset.py   # ruleset config guard
+python3 tests/test_evals.py     # agent eval checks fail on the untouched fixture
 bash -n scripts/eng             # shell syntax
 eng health                      # verify a local install
 eng sync [all|<editor>]         # render + install for each installed editor

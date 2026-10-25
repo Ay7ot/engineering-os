@@ -2,7 +2,7 @@
 name: writing-plans
 description: Write a bite-sized, executable implementation plan with exact paths, code and commands for work that already has a spec or requirements. Use when turning a spec into step-by-step tasks before touching code. Not for phase or dependency decomposition, which `project-planning` covers.
 metadata:
-  audience: planner, builder
+  audience: lead, builder
   upstream: https://github.com/obra/superpowers
   license: MIT
 ---

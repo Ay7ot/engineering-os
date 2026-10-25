@@ -2,7 +2,7 @@
 name: improve-animations
 description: Survey a codebase's animation code as a senior motion advisor, then produce a prioritized audit and self-contained implementation plans for other agents to execute. Use when asked to improve the animations, audit the motion, or make an app feel better. Read-only on source.
 metadata:
-  audience: lead, architect, planner, builder
+  audience: lead, architect, builder
   upstream: https://github.com/emilkowalski/skills/tree/main/skills/improve-animations
   license: MIT
 ---
