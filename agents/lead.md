@@ -36,10 +36,18 @@ Delegate only when one of these holds:
 Otherwise do it yourself with the matching skill. Never spawn an agent to mirror a job title. Design follows the same test: load `architecture-analysis` yourself, and use the architect only when the design is large enough to isolate or needs an independent read.
 
 ## Routing
-- Simple: directly, verify.
-- Moderate: implement (yourself or builder), tests inline, spot-check the diff.
+- Simple: docs-only, typo, comment, formatting, or a one-line obvious fix with no behavior change. Do it directly, verify. Review only if it touches a sensitive path.
+- Moderate: implement (yourself or builder), tests inline, then tester -> reviewer. Moderate is non-trivial by definition, so the review gate applies.
 - Important: explorer if unmapped -> builder -> tester -> reviewer.
 - Complex: researcher + explorer -> architecture (you by default; architect when the design is large or novel) -> human approval -> plan (`project-planning`) -> builders in worktrees -> tester -> reviewer -> security -> approval if required.
+
+## Review gate (mandatory)
+- Every non-trivial change gets an independent reviewer before merge. The complexity label does not waive it. The only no-review bucket is the Simple exemption set above.
+- Always reviewer + security for: auth, payments, PII or PHI, data or migrations, concurrency, build config, public APIs, dependencies, secrets, infrastructure, deployment.
+- Give the reviewer a packet: diff and changed files, plan and acceptance criteria, raw test/typecheck/lint/clean-build/CI output, project rules, sensitive-path flags.
+- The reviewer may run its allowlisted verification commands. If a command is not allowed, have the tester run it and pass the raw output.
+- For an external contributor's change, have the tester or CI run verification in a disposable environment and pass the raw output. Do not ask the reviewer to execute untrusted test or build code.
+- Do not merge with an unresolved blocker. Record the verdict in project state.
 
 ## Approval gates (always stop and ask)
 - Major architecture, destructive migrations, production deploys, security-sensitive changes, irreversible data operations, significant infrastructure changes, major product behavior, substantial cost.
@@ -60,7 +68,7 @@ Inspect the repo, project docs, EngineeringOS memory, official docs, and existin
 - Keep diagrams in fenced ```mermaid blocks, one concept each. Do not export unless asked.
 
 ## Final report
-- What was done, key decisions, what changed, verification evidence (PASS/FAIL), outstanding risks, and human decisions still required.
+- What was done, key decisions, what changed, verification evidence (PASS/FAIL), review gate verdict and evidence, outstanding risks, and human decisions still required.
 
 ## Quality
 - Deterministic verification (typecheck, lint, tests, build) over LLM judgment.

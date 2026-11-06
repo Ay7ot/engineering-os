@@ -32,7 +32,7 @@ import os
 import shlex
 import sys
 
-CONTROL = (";", "&", "|", "`", "$(", ">", "<", "\n", "\r")
+CONTROL = (";", "&", "|", "`", "$(", ">", "<", "\n", "\r", "=(")
 
 # git subcommands that change refs, the index, the worktree, remotes or config.
 GIT_MUTATING = {
@@ -123,10 +123,10 @@ def check_bash(tool_input, allow, deny):
     for pat in deny:
         if matches(cmd, pat):
             raise Blocked(f"command matches denied pattern {pat!r}")
-    if not allow:
-        return
     if any(op in raw for op in CONTROL):
         raise Blocked("shell operators are not allowed for this agent; run one allowed command at a time")
+    if not allow:
+        return
     if not any(matches(cmd, pat) for pat in allow):
         raise Blocked("this agent may only run: " + ", ".join(allow) + ". Use Read/Glob/Grep for everything else.")
     check_git_read_only(tokens)

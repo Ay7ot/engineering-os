@@ -85,6 +85,12 @@ check("list item continuation must line up with the item",
       "list item" in (raises(lambda: parse_frontmatter("---\np:\n  - action: shell\n   effect: deny\n---\n", "f.md")) or ""))
 check("quoted first key in a list item parses",
       parse_frontmatter('---\np:\n  - "x y": 1\n    b: 2\n---\n')[0] == {"p": [{"x y": "1", "b": "2"}]})
+check("quoted key escapes parse",
+      parse_frontmatter('---\n"*\\n*": deny\n---\n')[0] == {"*\n*": "deny"})
+check("quoted key escaped quote parses",
+      parse_frontmatter('---\n"a\\"b": deny\n---\n')[0] == {'a"b': "deny"})
+check("single-quoted key doubled quote parses",
+      parse_frontmatter("---\n'a''b': deny\n---\n")[0] == {"a'b": "deny"})
 check("a comment before a list is skipped, not treated as a map",
       parse_frontmatter("---\np:\n  # why\n  - a\n---\n")[0] == {"p": ["a"]})
 check("tabs rejected", raises(lambda: parse_frontmatter("---\na:\n\tb: c\n---\n", "f.md")) is not None)
@@ -195,6 +201,23 @@ GIT_BRANCH_READ = ["git branch", "git branch -a", "git branch -r", "git branch -
                    "git branch --show-current", "git branch --list *", "git branch --contains *",
                    "git branch --merged *", "git branch --no-merged *"]
 GIT_REMOTE_READ = ["git remote", "git remote -v", "git remote get-url *"]
+REVIEW_GIT_READ = ["git rev-parse *", "git ls-files *", "git describe *", "git blame *",
+                   "git tag --list *", "git tag -l *"]
+REVIEW_VERIFY = [
+    "npm test", "npm run test", "npm run typecheck", "npm run lint", "npm run build", "npm run check",
+    "pnpm test", "pnpm run test", "pnpm run typecheck", "pnpm run lint", "pnpm run build", "pnpm run check",
+    "yarn test", "yarn run test", "yarn run typecheck", "yarn run lint", "yarn run build", "yarn run check",
+    "bun test", "bun run test", "bun run typecheck", "bun run lint", "bun run build", "bun run check",
+    "pytest", "pytest tests", "python -m pytest", "python -m pytest tests",
+    "python3 -m pytest", "python3 -m pytest tests", "python3 -m unittest",
+    "python3 -m py_compile *",
+    "go test ./...", "go vet ./...",
+    "cargo test", "cargo check", "cargo clippy",
+    "make test", "make check", "make lint", "make build",
+    "gh pr checks", "gh pr view*", "gh pr diff*", "gh run list*",
+]
+REVIEW_CONTROL_DENY = ["*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*>*", "*<*",
+                       "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*"]
 
 
 def no_git_writes(*subs):
@@ -203,6 +226,10 @@ def no_git_writes(*subs):
 
 def allows(*keys):
     return [(k, "allow") for k in keys]
+
+
+def denies(*keys):
+    return [(k, "deny") for k in keys]
 
 
 # 2026-10-25: agent bodies are no longer compared to the frozen fixture. The
@@ -223,7 +250,9 @@ FIXTURE_DELTAS = {  # 2026-10-10: read-only agents get read-only git in OpenCode
     "explorer": {"bash_remove": ["git branch *", "git remote *"],
                  "bash_add": allows(*GIT_BRANCH_READ, *GIT_REMOTE_READ) + no_git_writes("log")},
     "reviewer": {"bash_remove": ["git branch *"],
-                 "bash_add": allows(*GIT_BRANCH_READ) + no_git_writes("diff", "log", "show")},
+                 "bash_add": allows(*GIT_BRANCH_READ, *REVIEW_GIT_READ)
+                             + no_git_writes("diff", "log", "show")
+                             + allows(*REVIEW_VERIFY) + denies(*REVIEW_CONTROL_DENY)},
     "security": {"bash_add": no_git_writes("diff", "log", "show")},
     "researcher": {"bash_remove": ["git *"],
                    "bash_add": allows("git status *", "git rev-parse *", "git log *", "git show *",
@@ -339,6 +368,17 @@ check("every agent has a fixture and every fixture has an agent",
       sorted({p.stem for p in (FIXTURES / "agents").glob("*.md")} ^ set(by_name)))
 check("planner is folded into the lead loop",
       "planner" not in by_name and "`project-planning`" in by_name["lead"].body, sorted(by_name))
+check("lead routing mandates the review gate", "Review gate (mandatory)" in by_name["lead"].body)
+check("lead routing makes Moderate review-gated",
+      "Moderate: implement" in by_name["lead"].body and "tester -> reviewer" in by_name["lead"].body)
+check("lead Simple bucket is the exemption set",
+      "docs-only, typo, comment, formatting" in by_name["lead"].body)
+check("reviewer prompt requires the review packet and cross-boundary pass",
+      "Review packet" in by_name["reviewer"].body and "cross-boundary" in by_name["reviewer"].body)
+check("reviewer prompt treats project code as untrusted",
+      "not a sandbox" in by_name["reviewer"].body and "untrusted" in by_name["reviewer"].body)
+check("code-review skill has the cross-boundary pass",
+      "Cross-boundary pass" in next(s for s in src.skills if s.name == "code-review").body)
 check("no current skill uses targets (pass-through below is exercised)", all("targets" not in s.fm for s in src.skills))
 with tempfile.TemporaryDirectory() as t:
     eng = Path(t)
@@ -439,12 +479,78 @@ check("no read-only agent may run a mutating git command", not leaks, leaks)
 by_name = {a.name: a.fm["permissions"]["bash"] for a in src.agents}
 want = {"explorer": ["git status", "git log --oneline -5", "git branch -a", "git branch --list 'feat/*'",
                      "git remote -v", "git remote get-url origin", "git ls-files src"],
-        "reviewer": ["git diff main...HEAD", "git show HEAD", "git branch --contains HEAD"],
+        "reviewer": ["git diff", "git diff main...HEAD", "git diff --dirstat", "git show HEAD",
+                     "git branch --contains HEAD", "git rev-parse HEAD", "git ls-files",
+                     "git describe --tags", "git blame README.md", "git tag --list 'v*'", "git tag -l 'v*'",
+                     "npm test", "npm run typecheck", "npm run lint", "npm run build",
+                     "pnpm test", "pytest", "pytest tests", "python3 -m pytest",
+                     "python3 -m unittest", "python3 -m py_compile scripts/eng",
+                     "go test ./...", "go vet ./...",
+                     "cargo test", "cargo check", "cargo clippy",
+                     "make test", "make check", "make lint", "make build", "gh pr checks"],
         "researcher": ["git log -3", "git tag --list 'v*'", "git describe --tags", "opencode mcp list"],
         "architect": ["git log --oneline"],
         "security": ["git diff", "npm audit"]}
 lost = [f"{n}: {c}" for n, cs in want.items() for c in cs if oc_bash(by_name[n], c) != "allow"]
-check("read-only git inspection still allowed", not lost, lost)
+check("read-only git inspection and reviewer verification still allowed", not lost, lost)
+REVIEW_DENY = [
+    "npm install", "npm publish", "npm run db:migrate", "gh pr merge", "vercel deploy",
+    "docker run", "rm -rf /tmp/x", "curl https://x", "git push",
+    "npm test && rm -rf /tmp/x",
+    "npm test & rm -rf /tmp/x",
+    "npm test; rm -rf /tmp/x",
+    "npm test | tee /tmp/x",
+    "npm test || rm -rf /tmp/x",
+    "npm test `rm -rf /tmp/x`",
+    "npm test $(rm -rf /tmp/x)",
+    "npm test > /tmp/x",
+    "npm test < /tmp/x",
+    "npm test\ngit push",
+    "npm test\rgit push",
+    "git grep -O 'sh -c \"git push\"' x",
+    "go test -exec 'sh -c \"git push\"' ./...",
+    "go vet -vettool 'sh -c \"git push\"' ./...",
+    "cargo clippy --fix",
+    "cargo test --config 'build.rustc-wrapper=\"sh -c id\"'",
+    "npx tsc --noEmit",
+    "make -f /tmp/evil test",
+    "pytest /tmp/evil.py",
+    "pytest --junitxml=/tmp/x tests",
+    "npm test --prefix /tmp",
+    "npm test --cwd /tmp",
+    "npm run lint -- --fix",
+    "npm test -- --updateSnapshot",
+    "npm test -- --update-snapshot",
+    "npm test -- -u",
+    "npm run lint -- -o src/app.ts",
+    "npm test -- --outputFile src/app.ts",
+    "npm run build -- --outDir src",
+    "npm test --script-shell=/tmp/evil",
+    "npm test --node-options=--require=/tmp/evil.js",
+    "pnpm test -C /tmp",
+    "npm test -- --watch",
+    "gh pr checks --watch",
+    "npm test =(rm -rf x)",
+    "git diff && rm -rf /tmp/x",
+    "git diff & rm -rf /tmp/x",
+    "git diff; rm -rf /tmp/x",
+    "git diff | tee /tmp/x",
+    "git diff || rm -rf /tmp/x",
+    "git diff `rm -rf /tmp/x`",
+    "git diff $(rm -rf /tmp/x)",
+    "git diff > /tmp/x",
+    "git diff < /tmp/x",
+    "git diff\ngit push",
+    "git diff\rgit push",
+    "git diff =(rm -rf x)",
+    "git diff --textconv",
+    "git log --show-signature",
+    "bash -n -i -c 'git push'",
+    "bash -n --interactive -c 'id'",
+    "bash -n -ic 'id'",
+]
+leaked = [f"reviewer: {c}" for c in REVIEW_DENY if oc_bash(by_name["reviewer"], c) == "allow"]
+check("reviewer cannot install, publish, deploy, merge, or chain commands", not leaked, leaked)
 check("typed golden would catch quoting drift",
       parse_frontmatter("---\nt: 0.1\n---\n", typed=True)[0] != parse_frontmatter('---\nt: "0.1"\n---\n', typed=True)[0])
 
@@ -489,6 +595,9 @@ disagree = [f"{a.name}: {c}"
             if oc_bash(a.fm["permissions"]["bash"], c)
             != v2_effect(parse_frontmatter(oc.render_agent(a, v2=True))[0]["permissions"], "shell", c)]
 check("v2 list resolves exactly like the v1 map (shell)", not disagree, disagree)
+reviewer_v2 = parse_frontmatter(oc.render_agent(next(a for a in src.agents if a.name == "reviewer"), v2=True))[0]["permissions"]
+v2_leaks = [c for c in REVIEW_DENY if v2_effect(reviewer_v2, "shell", c) == "allow"]
+check("reviewer v2 list denies the same probes", not v2_leaks, v2_leaks)
 read_disagree = []
 for a in src.agents:
     v1_read = parse_frontmatter(oc.render_agent(a, v2=False))[0]["permission"]["read"]
