@@ -13,10 +13,12 @@ MCP server there. `eng sync` runs every adapter whose editor is installed.
 ## Neutral source format
 
 Frontmatter is a small YAML subset: nested maps, scalars, and block lists
-(`- item`, or `- key: value` with a nested map). Flow collections (`[...]`,
-`{...}`), anchors, tabs and multi-document are rejected with `file:line`, and
-sync aborts before writing anything. Sources still express `permissions` as a
-map; only the generated OpenCode V2 files use the list form.
+(`- item`, or `- key: value` with a nested map). Double-quoted keys and values
+support JSON-style escapes (for example `\n`), so a pattern such as `"*\n*"`
+can be expressed; single-quoted strings use `''` for a literal quote. Flow
+collections (`[...]`, `{...}`), anchors, tabs and multi-document are rejected
+with `file:line`, and sync aborts before writing anything. Sources still express
+`permissions` as a map; only the generated OpenCode V2 files use the list form.
 
 **Agent** (`agents/<name>.md`)
 

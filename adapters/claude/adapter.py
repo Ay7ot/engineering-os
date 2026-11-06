@@ -126,7 +126,11 @@ def translate_permissions(perm, py, protect=()):
         rules = {k: v for k, v in bash.items() if k != "*"}
         if not grants(bash.get("*", "allow")):
             allow = [k for k, v in rules.items() if grants(v)]
-            deny = [k for k, v in rules.items() if not grants(v)]
+            # Control characters and zsh process substitution are enforced by
+            # the guard itself; carrying them as shell arguments would put a
+            # literal newline or CR into the generated hook command.
+            deny = [k for k, v in rules.items()
+                    if not grants(v) and not any(c in k for c in ("\n", "\r", "=("))]
             if allow:
                 # Deny rules are checked before allows in the guard, so a later
                 # "npm publish *": deny still blocks under "npm *": allow.
@@ -134,7 +138,8 @@ def translate_permissions(perm, py, protect=()):
             else:
                 disallowed.append("Bash")
         else:
-            deny = [k for k, v in rules.items() if not grants(v)]
+            deny = [k for k, v in rules.items()
+                    if not grants(v) and not any(c in k for c in ("\n", "\r", "=("))]
             if deny:
                 hooks.append(("Bash", _guard_cmd(py, "bash", deny=deny)))
     elif not grants(bash):

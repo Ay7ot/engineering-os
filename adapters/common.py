@@ -102,7 +102,12 @@ def _scalar(s, where, typed=False):
 def _key(s, where):
     s = s.strip()
     if len(s) >= 2 and s[0] == s[-1] and s[0] in "\"'":
-        return s[1:-1]
+        if s[0] == '"':
+            try:
+                return json.loads(s)
+            except ValueError:
+                raise SourceError(f"{where}: unsupported escape in quoted key {s!r}")
+        return s[1:-1].replace("''", "'")
     if not s:
         raise SourceError(f"{where}: empty key")
     return s
@@ -112,10 +117,20 @@ def _split_key(line, where):
     s = line.strip()
     if s[0] in "\"'":
         q = s[0]
-        end = s.find(q, 1)
-        if end == -1 or s[end + 1:end + 2] != ":":
+        i = 1
+        while i < len(s):
+            if q == '"' and s[i] == "\\":
+                i += 2
+                continue
+            if s[i] == q:
+                if q == "'" and s[i + 1:i + 2] == "'":
+                    i += 2
+                    continue
+                break
+            i += 1
+        if i >= len(s) or s[i + 1:i + 2] != ":":
             raise SourceError(f"{where}: malformed quoted key")
-        return s[:end + 1], s[end + 2:]
+        return s[:i + 1], s[i + 2:]
     if ":" not in s:
         raise SourceError(f"{where}: expected 'key: value'")
     k, _, rest = s.partition(":")

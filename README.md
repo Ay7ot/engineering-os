@@ -188,8 +188,8 @@ permanent copy.
 | **explorer** | subagent | fast | Maps repositories and non-git workspaces; produces repo maps, not dumps | no |
 | **architect** | subagent | deep | Architecture proposals, alternatives, tradeoffs, ADRs, diagrams; used for complex or novel design | markdown only |
 | **builder** | subagent | standard | Implements the approved plan and proves it with tests; stops and reports on architectural problems | yes |
-| **tester** | subagent | standard | Independent verification for Important and Complex work; reports PASS/FAIL evidence | tests only |
-| **reviewer** | subagent | deep | Adversarial review; finds reasons NOT to merge | no |
+| **tester** | subagent | standard | Independent verification for Important, Complex, and review-gated Moderate work; reports PASS/FAIL evidence | tests only |
+| **reviewer** | subagent | deep | Adversarial review; finds reasons NOT to merge; may run allowlisted verification commands for evidence | no (verification only) |
 | **security** | subagent | deep | Security review of auth, data, secrets, injection, dependencies | no |
 
 Subagents are deliberately few. The lead keeps the work unless one of three
@@ -205,19 +205,37 @@ output style. Each editor maps the model tier to its own models (see
 
 Read-only agents are locked down at the permission level: `edit` is denied
 (the architect may edit markdown only), and `bash` is denied except an explicit
-list of read-only commands. Git stays read-only for them: push, reset, branch
-deletion, remote changes and file-writing flags like `--output` are denied. In
-OpenCode the permission maps enforce this; in Claude Code a guard hook enforces
-the same rules and blocks on any error.
+allowlist. Git stays read-only for them: push, reset, branch deletion, remote
+changes and file-writing flags like `--output` are denied. The reviewer may run
+an allowlisted set of verification commands (tests, typecheck, lint, clean
+build, CI status) for evidence. The allowlist constrains the command string, not
+the code it runs: test and build code still executes with the reviewer's
+permissions, so for an external or untrusted change the tester or CI runs
+verification in a disposable environment and the reviewer judges the raw
+output. The reviewer never edits source. In OpenCode the permission maps
+enforce this; in Claude Code a guard hook enforces the same rules and blocks on
+any error.
 
 **Workflows by complexity:**
 
 | Complexity | Workflow |
 |---|---|
-| Simple | Do it directly, verify |
-| Moderate | implement (lead or builder), tests inline, spot-check the diff |
+| Simple | Docs-only, typo, comment, formatting, or a one-line obvious fix with no behavior change: do it directly, verify. Review only if it touches a sensitive path |
+| Moderate | implement (lead or builder), tests inline, then tester → reviewer. Moderate is non-trivial, so the review gate applies |
 | Important | explorer (if unmapped) → builder → tester → reviewer |
 | Complex | researcher + explorer → architecture (lead by default; architect when the design is large or novel) → **human gate** → plan (`project-planning` skill) → builders (parallel worktrees) → tester → reviewer → security → **human gate** if needed |
+
+**Review gate.** Independent review is mandatory for every non-trivial change,
+and always for changes touching auth, payments, PII or PHI, data or migrations,
+concurrency, build config, public APIs, dependencies, secrets, infrastructure,
+or deployment. The reviewer gets a review packet: the diff and changed files,
+the plan and acceptance criteria, raw test/typecheck/lint/clean-build/CI output,
+the project rules, and the sensitive-path flags. It may run the verification
+commands in its allowlist; if a command is not permitted, the tester runs it and
+passes the raw output. It also runs a cross-boundary pass for DB type against
+query parameter, timestamp precision, client/server boundary, bundle boundary,
+serialization, and concurrency token precision. A change is not merged with an
+unresolved blocker.
 
 The human gate always stops for: major architecture decisions, destructive DB
 migrations, production deploys, security-sensitive changes, irreversible data

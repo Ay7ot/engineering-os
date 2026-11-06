@@ -81,6 +81,9 @@ There is no build step and no package manager. Nothing to install.
 5. Do not push directly to `main` unless you are acting as the repository admin.
    Contributors open a PR; CI must pass.
 6. Persist significant decisions as ADRs in `docs/decisions/`.
+7. Non-trivial changes require independent review before merge. Use the review
+   gate in `agents/lead.md`: review packet, allowlisted verification, and the
+   cross-boundary pass. Sensitive paths also get security review.
 
 ## Memory
 

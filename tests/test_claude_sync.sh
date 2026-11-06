@@ -79,6 +79,10 @@ expect_contains "architect edits limited to markdown" "edit --allow '*.md'" "$ar
 reviewer="$(cat "$C/agents/reviewer.md")"
 expect_contains "reviewer cannot edit" "disallowedTools: Edit, Write, NotebookEdit" "$reviewer"
 expect_contains "reviewer bash guarded" "eos_guard.py bash --allow 'git diff *'" "$reviewer"
+expect_contains "reviewer can run tests" "--allow 'npm test'" "$reviewer"
+expect_contains "reviewer can run build" "--allow 'npm run build'" "$reviewer"
+expect_contains "reviewer can run CI status" "--allow 'gh pr checks'" "$reviewer"
+expect_contains "reviewer chaining deny carried" "--deny '*&*'" "$reviewer"
 
 expect_file "renamed skill eos-security-review" "$C/skills/eos-security-review/SKILL.md"
 expect_file "renamed skill eos-code-review" "$C/skills/eos-code-review/SKILL.md"
@@ -171,6 +175,17 @@ dis, hooks = cs.translate_permissions({"bash": {"*": "deny", "npm *": "allow", "
 assert "--deny 'npm publish *'" in hooks[0][1], hooks
 dis, hooks = cs.translate_permissions({"edit": {"*": "allow", "*.env": "ask"}}, "py")
 assert hooks and "--deny '*.env'" in hooks[0][1], hooks
+dis, hooks = cs.translate_permissions({"bash": {"*": "deny", "git diff *": "allow", "*\n*": "deny",
+                                                "*\r*": "deny", "*=(*": "deny", "*&*": "deny"}}, "py")
+cmd = hooks[0][1]
+assert "\n" not in cmd and "\r" not in cmd, "literal control character in hook"
+assert "=(" not in cmd, "redundant process substitution deny in hook"
+assert "*&*" in cmd, "ampersand deny missing from hook"
+dis, hooks = cs.translate_permissions({"bash": {"*": "allow", "*\n*": "deny", "*\r*": "deny",
+                                                "*=(*": "deny", "npm publish *": "deny"}}, "py")
+cmd = hooks[0][1]
+assert "\n" not in cmd and "\r" not in cmd and "=(" not in cmd, "literal control char in deny-only hook"
+assert "npm publish *" in cmd, "deny-only hook missing publish deny"
 PY
 
 echo "test_claude_sync: stale managed files removed, user files kept"
@@ -224,6 +239,35 @@ R=(bash --allow 'git branch *' --allow 'git remote *' --allow 'git *')
 N=(bash --allow 'npm *' --deny 'npm publish *')
 [ "$(guard '{"tool_input":{"command":"npm publish x"}}' "${N[@]}")" = 2 ] && ok "deny inside allowlist blocks" || no "deny inside allowlist blocks"
 [ "$(guard '{"tool_input":{"command":"npm test"}}' "${N[@]}")" = 0 ] && ok "allowlist still allows" || no "allowlist still allows"
+RV=(bash --allow 'npm test' --allow 'npm run build' --allow 'gh pr checks' --allow 'go test ./...')
+[ "$(guard '{"tool_input":{"command":"npm test"}}' "${RV[@]}")" = 0 ] && ok "reviewer test command allowed" || no "reviewer test command allowed"
+[ "$(guard '{"tool_input":{"command":"npm run build"}}' "${RV[@]}")" = 0 ] && ok "reviewer build command allowed" || no "reviewer build command allowed"
+[ "$(guard '{"tool_input":{"command":"npm install"}}' "${RV[@]}")" = 2 ] && ok "reviewer install blocked" || no "reviewer install blocked"
+[ "$(guard '{"tool_input":{"command":"npm test & rm -rf x"}}' "${RV[@]}")" = 2 ] && ok "reviewer single & blocked" || no "reviewer single & blocked"
+[ "$(guard '{"tool_input":{"command":"npm test\nrm -rf x"}}' "${RV[@]}")" = 2 ] && ok "reviewer newline blocked" || no "reviewer newline blocked"
+[ "$(guard '{"tool_input":{"command":"npm test =(rm -rf x)"}}' "${RV[@]}")" = 2 ] && ok "reviewer process substitution blocked" || no "reviewer process substitution blocked"
+[ "$(guard '{"tool_input":{"command":"go test ./..."}}' "${RV[@]}")" = 0 ] && ok "reviewer go test allowed" || no "reviewer go test allowed"
+[ "$(guard '{"tool_input":{"command":"go test -exec \"sh -c id\" ./..."}}' "${RV[@]}")" = 2 ] && ok "reviewer go test exec blocked" || no "reviewer go test exec blocked"
+[ "$(guard '{"tool_input":{"command":"git grep -O \"sh -c id\" x"}}' "${RV[@]}")" = 2 ] && ok "reviewer git grep exec blocked" || no "reviewer git grep exec blocked"
+[ "$(guard '{"tool_input":{"command":"bash -n -i -c \"git push\""}}' "${RV[@]}")" = 2 ] && ok "reviewer bash -n bypass blocked" || no "reviewer bash -n bypass blocked"
+RC=(bash --allow 'git diff *' --allow 'git log *' --deny '*--textconv*' --deny '*--show-signature*')
+[ "$(guard '{"tool_input":{"command":"git diff"}}' "${RC[@]}")" = 0 ] && ok "reviewer broad git diff allowed" || no "reviewer broad git diff allowed"
+[ "$(guard '{"tool_input":{"command":"git diff --dirstat"}}' "${RC[@]}")" = 0 ] && ok "reviewer dirstat allowed" || no "reviewer dirstat allowed"
+[ "$(guard '{"tool_input":{"command":"git diff & rm -rf x"}}' "${RC[@]}")" = 2 ] && ok "reviewer broad single & blocked" || no "reviewer broad single & blocked"
+[ "$(guard '{"tool_input":{"command":"git diff; rm -rf x"}}' "${RC[@]}")" = 2 ] && ok "reviewer broad semicolon blocked" || no "reviewer broad semicolon blocked"
+[ "$(guard '{"tool_input":{"command":"git diff | tee /tmp/x"}}' "${RC[@]}")" = 2 ] && ok "reviewer broad pipe blocked" || no "reviewer broad pipe blocked"
+[ "$(guard '{"tool_input":{"command":"git diff `rm -rf x`"}}' "${RC[@]}")" = 2 ] && ok "reviewer broad backtick blocked" || no "reviewer broad backtick blocked"
+[ "$(guard '{"tool_input":{"command":"git diff < /tmp/x"}}' "${RC[@]}")" = 2 ] && ok "reviewer broad redirect-in blocked" || no "reviewer broad redirect-in blocked"
+[ "$(guard '{"tool_input":{"command":"git diff\nrm -rf x"}}' "${RC[@]}")" = 2 ] && ok "reviewer broad newline blocked" || no "reviewer broad newline blocked"
+[ "$(guard '{"tool_input":{"command":"git diff\rrm -rf x"}}' "${RC[@]}")" = 2 ] && ok "reviewer broad CR blocked" || no "reviewer broad CR blocked"
+[ "$(guard '{"tool_input":{"command":"git diff =(rm -rf x)"}}' "${RC[@]}")" = 2 ] && ok "reviewer broad process substitution blocked" || no "reviewer broad process substitution blocked"
+[ "$(guard '{"tool_input":{"command":"git diff --textconv"}}' "${RC[@]}")" = 2 ] && ok "reviewer textconv blocked" || no "reviewer textconv blocked"
+[ "$(guard '{"tool_input":{"command":"git log --show-signature"}}' "${RC[@]}")" = 2 ] && ok "reviewer show-signature blocked" || no "reviewer show-signature blocked"
+D=(bash --deny 'npm publish *')
+[ "$(guard '{"tool_input":{"command":"npm publish x"}}' "${D[@]}")" = 2 ] && ok "deny-only deny still blocks" || no "deny-only deny still blocks"
+[ "$(guard '{"tool_input":{"command":"npm test"}}' "${D[@]}")" = 0 ] && ok "deny-only ordinary command allowed" || no "deny-only ordinary command allowed"
+[ "$(guard '{"tool_input":{"command":"npm test\nrm -rf x"}}' "${D[@]}")" = 2 ] && ok "deny-only newline blocked" || no "deny-only newline blocked"
+[ "$(guard '{"tool_input":{"command":"npm test =(rm -rf x)"}}' "${D[@]}")" = 2 ] && ok "deny-only process substitution blocked" || no "deny-only process substitution blocked"
 [ "$(guard '{"tool_input":{"file_path":"/x/.env"}}' edit --allow '*' --deny '.env' --deny '*.env')" = 2 ] && ok "edit deny glob blocks" || no "edit deny glob blocks"
 
 echo "test_claude_sync: legacy guard shim removed"

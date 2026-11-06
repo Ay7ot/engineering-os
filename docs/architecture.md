@@ -79,8 +79,20 @@ design and its tradeoffs.
 5. **Implement** → the lead or a builder works in an isolated git worktree
    (`eng worktree`).
 6. **Verify** → builder runs tests inline for Moderate work; the tester verifies
-   independently for Important and Complex work and reports evidence.
-7. **Review** → reviewer and security review adversarially before merge.
+   independently for Important, Complex, and review-gated Moderate work, and
+   reports raw evidence.
+7. **Review gate** → independent reviewer for every non-trivial change and every
+   sensitive path; security too for auth, payments, PII or PHI, data or
+   migrations, concurrency, build config, public APIs, dependencies, secrets,
+   infrastructure, or deployment. The reviewer gets a packet: diff and changed
+   files, plan and acceptance criteria, raw verification output, CI status,
+   project rules, and sensitive-path flags. It may run its allowlisted
+   verification commands; otherwise the tester runs them and passes the raw
+   output. For an external or untrusted change, the tester or CI runs
+   verification in a disposable environment and the reviewer judges the raw
+   output. The `code-review` skill includes a cross-boundary pass for DB type
+   against parameter, timestamp precision, client/server boundary, bundle
+   boundary, serialization, and concurrency token precision.
 8. **State** → project state and knowledge updated via MCP.
 
 ## Subagent policy
@@ -96,9 +108,19 @@ A subagent gets its own context window only when one of three conditions holds:
 Every other responsibility is a skill loaded on demand. Design is not a fourth
 reason: the lead loads `architecture-analysis` and spawns the architect only
 when the design is large enough to isolate or needs an independent read. The
-read-only agents stay read-only at the permission level, and that boundary is
-the reason they exist as separate agents rather than as prompts in the main
-loop.
+read-only agents keep no source-edit rights at the permission level, and that
+boundary is the reason they exist as separate agents rather than as prompts in
+the main loop.
+
+The review gate is the independence condition in practice: it is why
+independence is one of the three delegation conditions. A non-trivial change is
+not merged on the lead's own judgment. The reviewer is a separate context with no edit rights, a review
+packet, and a narrow verification allowlist. It can run tests, typecheck, lint,
+a clean build, and read CI status. The allowlist constrains the command string,
+not the code it runs: test and build code executes with the reviewer's
+permissions. For an external or untrusted change, the tester or CI runs
+verification in a disposable environment and passes the raw output, so the
+reviewer still judges evidence rather than a summary.
 
 ## Security posture
 
