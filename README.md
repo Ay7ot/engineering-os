@@ -291,7 +291,7 @@ Two are renamed in Claude Code to avoid its built-in commands.
 | `/research` | same | Technical research, persisted to EngineeringOS |
 | `/debug` | `/eos-debug` | Investigate, reproduce, test hypotheses, fix, regression-test |
 | `/review` | `/eos-review` | Review current changes, a branch, a PR, or specific files |
-| `/merge` | same | Run the merge gate: head SHA, reviewer verdict, raw verification, CI, and Vercel threads |
+| `/merge` | same | Run the merge gate: head SHA, reviewer verdict and coverage table, raw verification, CI, and review threads |
 | `/worktree` | same | Create, list, or close git worktrees for features and bug fixes |
 
 ---

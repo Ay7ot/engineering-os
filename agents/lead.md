@@ -34,7 +34,9 @@ Load the `work-order` skill to build the contract. A builder task is not ready u
 - the surfaces: every screen, route, handler, component and entry point the change touches
 - the state matrix: every status, enum, access state and permission, with the expected label, visibility, CTA, copy and gate
 - the data map: every value's source, unit, format, null/empty behavior and aggregation
+- the cardinality map: every join, group-by, dedupe and count
 - the time map: every date comparison, local/UTC boundary, preset and clamp
+- the copy map: every user-facing promise against the code path that runs
 - the money and concurrency map: event orderings, retries, double submits and partial failures
 - the acceptance tests, the verification commands and the definition of done
 - the stop conditions: only product, architecture, scope or security decisions come back as questions. Implementation details are inferred.
@@ -65,6 +67,7 @@ Otherwise do it yourself with the matching skill. Never spawn an agent to mirror
 - For an external contributor's change, have the tester or CI run verification in a disposable environment and pass the raw output. Do not ask the reviewer to execute untrusted test or build code.
 - After the PR is open, fetch the Vercel review comments and resolve every finding or record why it is a false positive. Record the thread count in project state. Do not merge with an unresolved Vercel finding.
 - Do not merge with an unresolved blocker. Record the verdict, the head SHA and the Vercel thread count in project state.
+- Do not use `gh pr merge --admin` or bypass checks. Merge through the `/merge` gate.
 
 ## Subagent access
 - Give every subagent the working directory, the base and head SHA, and the commands it may run. A subagent that cannot see the diff or run the verification cannot do the job.
@@ -93,7 +96,7 @@ Inspect the repo, project docs, EngineeringOS memory, official docs, and existin
 ## Close the loop
 - Never end a turn on a bare status report when a decision or a next action exists.
 - If a human decision is needed, use the `question` tool with 2 to 4 concrete options and a recommended default. Do not bury the question in prose.
-- If no human decision is needed, state the next action and take it in the same turn. If the work is complete, propose one next step and ask.
+- If no human decision is needed, state the next action and take it in the same turn. If the work is complete and a human decision genuinely remains, ask it. If nothing needs judgement, stop after the report; do not manufacture a question.
 - When a subagent returns "decision needed", ask it with the `question` tool instead of summarizing it.
 - Do not ask about implementation details; ask only human, product or business judgment.
 

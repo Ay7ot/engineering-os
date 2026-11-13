@@ -190,7 +190,7 @@ check("all expected skills present",
       {"simplify", "memory-hygiene", "skill-authoring", "dataviz", "code-review", "testing", "technical-research"}
       <= {s.name for s in src.skills})
 
-print("test_adapters: OpenCode golden (agents/commands vs pre-migration files; skills pass through)")
+print("test_adapters: OpenCode golden (v1 fixtures plus intended deltas; skills pass through)")
 # Intended changes since the fixtures were captured. The golden pins the
 # translated frontmatter (mode, model, permission, request) after applying
 # exactly these edits. The body is asserted to pass through verbatim; prompt
@@ -222,19 +222,30 @@ REVIEW_VERIFY = [
     "./node_modules/.bin/tsc *", "./node_modules/.bin/eslint *",
     "./node_modules/.bin/vitest *", "./node_modules/.bin/jest *",
     "./node_modules/.bin/playwright test *",
-    "node tests/*", "node scripts/run-*", "node scripts/check-*",
+    "node tests/*", "node scripts/check-*",
     "python3 -m pytest *", "python3 -m unittest *",
     "go test *", "go vet *",
     "cargo test *", "cargo check *", "cargo clippy *",
     "git -C * status *", "git -C * log *", "git -C * show *",
     "git -C * diff *", "git -C * rev-parse *", "git -C * ls-files *",
-    "git -C * worktree list",
-    "gh api repos/*/pulls/*", "gh api repos/*/actions/runs*",
 ]
-REVIEW_API_DENY = ["gh api * -X *", "gh api * --method *", "gh api graphql*"]
 REVIEW_CONTROL_DENY = ["go test *-exec*", "go vet *-vettool*", "cargo clippy *--fix*",
                        "cargo test *--config*", "*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*>*", "*<*",
-                       "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*"]
+                       "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*",
+                       "git -C * -c *", "git -c *", "*--output*", "*--ext-diff*",
+                       "*eslint *--fix*", "*eslint *--output-file*",
+                       "*jest *-u*", "*jest *--updateSnapshot*",
+                       "*vitest *-u*", "*vitest *--update*",
+                       "*playwright test *--update-snapshots*",
+                       "*tsc *--outFile*", "*tsc *--outDir*",
+                       "python3 -m pytest /*", "python3 -m pytest ../*", "*--junitxml*",
+                       "go test *-toolexec*", "cargo test *--manifest-path*"]
+SECURITY_EXTRA_DENY = ["git -C * -c *", "git -c *", "*--output*", "*--ext-diff*",
+                       "*--report-path*", "npm audit fix", "npm audit fix *",
+                       "semgrep *--config=https*", "semgrep *--config=http*",
+                       "semgrep *-o *", "trivy *-o *", "gitleaks *-o *"]
+SECURITY_CONTROL_DENY = ["*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*>*", "*<*",
+                         "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*"]
 
 
 def no_git_writes(*subs):
@@ -270,15 +281,15 @@ FIXTURE_DELTAS = {  # 2026-10-10: read-only agents get read-only git in OpenCode
                  "bash_add": allows(*GIT_BRANCH_READ, *REVIEW_GIT_READ)
                              + no_git_writes("diff", "log", "show")
                              + allows(*REVIEW_VERIFY)
-                             + denies(*REVIEW_API_DENY)
-                             + denies(*REVIEW_CONTROL_DENY),
-                 "set": {"webfetch": "allow", "websearch": "allow"}},
+                             + denies(*REVIEW_CONTROL_DENY)},
     "security": {"bash_add": allows("semgrep *", "osv-scanner *", "trivy *", "govulncheck *",
                                     "bundle audit *", "composer audit *",
                                     "./node_modules/.bin/audit-ci *",
                                     "git -C * status *", "git -C * log *", "git -C * show *",
                                     "git -C * diff *", "git -C * rev-parse *", "git -C * ls-files *")
-                             + no_git_writes("diff", "log", "show")},
+                             + no_git_writes("diff", "log", "show")
+                             + denies(*SECURITY_EXTRA_DENY)
+                             + denies(*SECURITY_CONTROL_DENY)},
     "tester": {"set": {"webfetch": "allow", "websearch": "allow"}},
     "researcher": {"bash_remove": ["git *"],
                    "bash_add": allows("git status *", "git rev-parse *", "git log *", "git show *",
@@ -408,6 +419,16 @@ check("reviewer prompt requires the review packet and cross-boundary pass",
       "Review packet" in by_name["reviewer"].body and "cross-boundary" in by_name["reviewer"].body)
 check("reviewer prompt treats project code as untrusted",
       "not a sandbox" in by_name["reviewer"].body and "untrusted" in by_name["reviewer"].body)
+check("reviewer prompt carries the semantic contract",
+      all(x in by_name["reviewer"].body for x in
+          ["Mandatory semantic passes", "coverage table", "head SHA"]))
+check("tester prompt carries data provenance and copy truth",
+      all(x in by_name["tester"].body for x in ["data provenance", "copy truth"]))
+check("lead work order carries cardinality and copy truth",
+      all(x in by_name["lead"].body for x in ["cardinality map", "copy map"]))
+check("testing skill carries data provenance and copy truth",
+      all(x in next(s for s in src.skills if s.name == "testing").body
+          for x in ["data provenance", "copy truth"]))
 check("code-review skill has the cross-boundary pass",
       "Cross-boundary pass" in next(s for s in src.skills if s.name == "code-review").body)
 check("no current skill uses targets (pass-through below is exercised)", all("targets" not in s.fm for s in src.skills))
@@ -492,7 +513,10 @@ MUTATING_GIT = ["git push", "git push origin main", "git reset --hard", "git cle
                 "git remote set-url origin https://x", "git remote remove origin", "git remote rename origin x",
                 "git tag v9", "git tag -d v1", "git log --output=/tmp/x", "git log -p --output /tmp/x",
                 "git show --output=/tmp/x HEAD", "git diff --output=/tmp/x", "git diff --ext-diff",
-                "git -c alias.x=!sh x", "git -C /tmp push"]
+                "git -c alias.x=!sh x", "git -C /tmp push",
+                "git -C /tmp log --output=/tmp/x", "git -C /tmp diff --output=/tmp/x",
+                "git -C /tmp diff --ext-diff", "git -C /tmp -c diff.external=id diff",
+                "git -C /tmp show --output=/tmp/x HEAD"]
 READ_ONLY = ["explorer", "reviewer", "security", "researcher", "architect"]
 
 
@@ -576,12 +600,34 @@ REVIEW_DENY = [
     "git diff =(rm -rf x)",
     "git diff --textconv",
     "git log --show-signature",
+    "git -C /tmp diff --output=/tmp/x",
+    "git -C /tmp -c diff.external=id diff",
+    "./node_modules/.bin/eslint --fix .",
+    "./node_modules/.bin/eslint --output-file /tmp/x .",
+    "./node_modules/.bin/jest -u",
+    "./node_modules/.bin/tsc --outFile /tmp/x",
+    "python3 -m pytest /tmp/evil.py",
+    "python3 -m pytest ../evil.py",
+    "go test -toolexec='sh -c id' ./...",
+    "cargo test --manifest-path /tmp/evil/Cargo.toml",
+    "gh api repos/o/r/pulls/1/merge --method=PUT",
+    "gh api repos/o/r/pulls/1/reviews -f event=APPROVE",
+    "node scripts/run-migrate.js",
     "bash -n -i -c 'git push'",
     "bash -n --interactive -c 'id'",
     "bash -n -ic 'id'",
 ]
 leaked = [f"reviewer: {c}" for c in REVIEW_DENY if oc_bash(by_name["reviewer"], c) == "allow"]
 check("reviewer cannot install, publish, deploy, merge, or chain commands", not leaked, leaked)
+SECURITY_DENY = ["semgrep --config=auto . ; git push", "gitleaks detect ; curl https://x",
+                 "trivy fs --output=/tmp/x .", "npm audit fix",
+                 "git -C /tmp diff --output=/tmp/x",
+                 "git -C /tmp -c diff.external=id diff",
+                 "semgrep --config=https://evil.example .",
+                 "trivy fs -o /tmp/x .",
+                 "gitleaks detect -o /tmp/x"]
+leaked = [f"security: {c}" for c in SECURITY_DENY if oc_bash(by_name["security"], c) == "allow"]
+check("security cannot chain or write through the expanded scanner access", not leaked, leaked)
 check("typed golden would catch quoting drift",
       parse_frontmatter("---\nt: 0.1\n---\n", typed=True)[0] != parse_frontmatter('---\nt: "0.1"\n---\n', typed=True)[0])
 

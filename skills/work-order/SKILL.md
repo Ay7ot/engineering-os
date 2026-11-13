@@ -2,7 +2,7 @@
 name: work-order
 description: Write a complete work order before delegating to a builder, tester or reviewer. Use when a task needs more than one step, when a subagent needs context, or when a change touches a user flow, data, time, money or permissions.
 metadata:
-  audience: lead, builder
+  audience: lead, builder, tester, reviewer
 ---
 # Work Order
 

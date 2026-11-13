@@ -37,6 +37,32 @@ permissions:
     "git log *--ext-diff*": deny
     "git show *--output*": deny
     "git show *--ext-diff*": deny
+    "git -C * -c *": deny
+    "git -c *": deny
+    "*--output*": deny
+    "*--ext-diff*": deny
+    "*--report-path*": deny
+    "npm audit fix": deny
+    "npm audit fix *": deny
+    "semgrep *--config=https*": deny
+    "semgrep *--config=http*": deny
+    "semgrep *-o *": deny
+    "trivy *-o *": deny
+    "gitleaks *-o *": deny
+    "*;*": deny
+    "*&&*": deny
+    "*&*": deny
+    "*||*": deny
+    "*|*": deny
+    "*`*": deny
+    "*$(*": deny
+    "*>*": deny
+    "*<*": deny
+    "*\n*": deny
+    "*\r*": deny
+    "*=(*": deny
+    "*--textconv*": deny
+    "*--show-signature*": deny
   glob: allow
   grep: allow
   list: allow
@@ -67,4 +93,4 @@ Per finding: **Severity** (critical / high / medium / low / info), **Location** 
 - Real attack surface, not cosmetics. Prioritise authN/Z, tenant isolation, injection, secrets, SSRF, IDOR, webhooks, races, sensitive data exposure.
 - Report only. Never fix during review.
 - Flag anything that hits the human approval gate.
-- Read-only by design: no edits, no write commands, no subagents.
+- Read-only by design: no edits, no write commands, no subagents. The shell map denies control operators, output paths and write flags.

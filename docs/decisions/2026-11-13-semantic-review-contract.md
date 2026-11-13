@@ -52,13 +52,17 @@ difference was whether the reviewer ran the code-review passes at all.
 4. Review each mergeable change at its exact head SHA. If a commit lands after
    the review, re-review the delta. One branch-level review does not cover PRs
    created later from the same branch.
-5. Add a merge gate (`/merge`): reviewer verdict for the head SHA, raw
-   verification, green CI, no unresolved Vercel threads, and a mergeable base.
-   Sensitive changes still stop for human approval.
+5. Add a merge gate (`/merge`): reviewer verdict with the coverage table for
+   the head SHA, raw verification, green CI, no unresolved review threads, and a
+   mergeable base. Sensitive changes still stop for human approval. This is a
+   process control; GitHub branch protection enforces review, last-push approval
+   and thread resolution for non-admin contributors.
 6. Expand read-only verification access for the reviewer, tester and security
    agents: common package scripts, local test and build binaries, read-only
-   `git -C` inspection, package audits, and official documentation. Keep the
-   source-edit, install, publish, deploy, merge and write-command boundary.
+   `git -C` inspection, package audits, and official documentation for the
+   security agent. The reviewer receives external documentation from the lead's
+   packet. Keep the source-edit, install, publish, deploy, merge and
+   write-command boundary. The reviewer does not get `gh api` or web access.
 7. Close the loop in the lead prompt: end every turn on the next action or a
    concrete decision through the `question` tool, not on a bare status report.
 
@@ -78,6 +82,31 @@ difference was whether the reviewer ran the code-review passes at all.
   are good, but the agents skipped them. Critical passes also go in the agent
   prompt, and the coverage table makes an omission visible.
 
+## Security review of the access expansion
+
+The independent security review of the first cut found four holes in the new
+read-only access. They are fixed in this decision:
+
+- `gh api repos/*/pulls/*` was removed from the reviewer. It allowed implicit
+  POST with `-f`, `--method=POST` and merge or review endpoints, so the reviewer
+  could write to the PR it was gating.
+- Reviewer `webfetch` and `websearch` were reverted to deny. The tool has no
+  private-address guard, and the reviewer can read host files, so the pair was an
+  SSRF and exfiltration path. The reviewer receives external documentation from
+  the lead's packet.
+- The `git -C` allow rules got blanket `*--output*`, `*--ext-diff*`, `git -C * -c *`
+  and `git -c *` denies, so the OpenCode map matches the Claude guard.
+- The security agent got the reviewer's control-operator deny block, plus
+  `*--output*`, `*--report-path*`, `npm audit fix` and `semgrep --config=https`
+  denies. It had no control denies before, so every wildcard was a chaining
+  anchor.
+- The reviewer's local binary allows got write-flag denies: `eslint --fix`,
+  `eslint --output-file`, `jest -u`, `vitest -u`, `tsc --outFile`, `tsc --outDir`,
+  `playwright --update-snapshots`. The test wildcards got `python3 -m pytest /*`,
+  `--junitxml`, `go test -toolexec` and `cargo test --manifest-path` denies.
+- The merge gate's thread step now uses GraphQL `reviewThreads`, because the REST
+  comments endpoint has no resolution field.
+
 ## Consequences
 
 - Work orders and reviews take longer to write. The cost moves from the post-PR
@@ -93,8 +122,11 @@ difference was whether the reviewer ran the code-review passes at all.
 ## Validation
 
 - `tests/test_adapters.py` covers the seventh command, the `work-order` skill,
-  the reviewer and tester documentation access, the expanded read-only
-  verification allowlist, and the `git -C` read-only rules.
+  the expanded read-only verification allowlist, the `git -C` read-only rules and
+  their write-form denies, the security control-operator denies, the local
+  binary write-flag denies, and the semantic-pass names in the prompts.
+- `tests/test_claude_sync.sh` covers the Claude guard for `git -C`, the local
+  binary and script-variant allows, and the `go test -exec` deny under a wildcard.
 - The full engine suite runs: `bash tests/test_eng.sh`,
   `python3 tests/test_adapters.py`, `bash tests/test_claude_sync.sh`,
   `bash tests/test_mcp.sh`, `python3 tests/test_ruleset.py`,
@@ -107,8 +139,13 @@ difference was whether the reviewer ran the code-review passes at all.
   or a real browser. The semantic contract reduces the class, it does not
   eliminate it.
 - The expanded allowlist still executes project test and build code with the
-  reviewer's permissions. The external-PR fallback remains a process control,
-  not a sandbox.
+  reviewer's permissions. The local binary and `node scripts/check-*` prefixes
+  bound the command name, not the code. The external-PR fallback remains a
+  process control, not a sandbox.
+- The merge gate is a process control. The operator's admin role can bypass the
+  ruleset, and the reviewer verdict is not a signed artifact. The lead must not
+  use `gh pr merge --admin`.
 - The read-only agents still have default access to write-capable MCP tools
   because the permission map does not deny them. Closing that is a separate
-  security task.
+  security task, and it must be closed before the reviewer is pointed at an
+  external PR.
