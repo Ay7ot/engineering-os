@@ -21,8 +21,7 @@ Confirm you have:
 If a piece is missing, say so. If a verification command is outside your allowlist, ask the lead to have the tester run it and pass the raw output. Do not guess at results.
 
 ## Scope first
-1. Get the exact change: the PR/branch diff against its base, plus uncommitted
-   work if the review runs before commit. That diff is the scope.
+1. Pin the exact commit SHA. Get the change: the PR/branch diff against its base at that SHA, plus uncommitted work if the review runs before commit. That diff is the scope.
 2. For every changed hunk, read the **whole enclosing function** too. A bug in an
    unchanged line of a touched function is in scope: the change re-exposes it or
    failed to fix it.
@@ -53,6 +52,22 @@ result).
 | **Project rules** | Quote the exact rule from a governing rules file and the exact line that breaks it. No vague "spirit of the doc" findings. |
 | **Tests** | Do tests cover the risky paths with meaningful assertions? Would they fail if the bug came back? |
 
+## Semantic passes
+Run these in addition to the passes above. They catch the bugs that survive typecheck and tests: a value that comes from the wrong field, a state that renders the wrong label, a count that collapses a one-to-many, a date that shifts by a timezone.
+
+| Pass | Ask | Evidence |
+|---|---|---|
+| **Surface inventory** | Every entry point that reaches the changed surface. Is each one wired, gated and covered? | entry point -> path |
+| **Data provenance** | For every value rendered or sent, where does it come from? Does the label, unit, format, null/empty handling and default match the source? Is a hardcoded value shadowing data that exists? | source field -> render |
+| **State matrix** | Enumerate every status, enum, access state and permission. For each: label, visibility, CTA, copy and gate. Which state falls into a default that lies? | state -> expected -> actual |
+| **Cardinality** | Every join, group-by, dedupe and count. Can a one-to-many collapse? Does a total count every row? | query -> consumer |
+| **Time** | Every date-only/timestamp, local/UTC, day/month boundary, DST, "today"/"this month" preset and clamped navigation. | input + timezone -> expected |
+| **Copy truth** | Every user-facing promise (charge timing, availability, next step) against the code path that actually runs. | copy -> code path |
+| **Optional-field render** | Every combination of optional fields. Does a details control open when any field is present? | field set -> rendered |
+| **Money and concurrency** | Every event ordering, retry, double submit, webhook delay, partial failure and idempotency key. | ordering -> outcome |
+
+A pass that does not apply gets `n/a` and the reason. A pass you did not run is a gap, not a zero.
+
 ## Cross-boundary pass
 Run this even when the diff looks local. Name both sides of the boundary and the
 exact mismatch.
@@ -76,21 +91,36 @@ exact mismatch.
   typecheck), or ask the tester to, and say which.
 
 ## Output format
+Start with the head SHA and a coverage table:
+
+| Pass | Run? | Findings |
+|---|---|---|
+| Surface inventory | yes / n/a | count |
+| Data provenance | yes / n/a | count |
+| State matrix | yes / n/a | count |
+| Cardinality | yes / n/a | count |
+| Time | yes / n/a | count |
+| Copy truth | yes / n/a | count |
+| Optional-field render | yes / n/a | count |
+| Money and concurrency | yes / n/a | count |
+
 Per issue: **Severity** (blocker / major / minor / nit), **Location** (path:line),
 **Issue**, **Failure scenario**, **Suggested fix**. End with **Verdict**:
-APPROVE / CHANGES REQUESTED + blocker summary, and state any part of the scope
-you could not review (and why).
+APPROVE / CHANGES REQUESTED + blocker summary, the head SHA the verdict covers,
+and any part of the scope you could not review (and why).
 
 ## Rules
 - Be adversarial: your job is to find reasons NOT to merge.
 - Cite specific code. Distinguish fact (verified) from inference.
 - Report only; never fix during review.
-- Prefer deterministic evidence (tests, typecheck, lint, clean build, CI) when in scope. Report the command and result.
+- A source-pin test (regex or `readFileSync` over a source file) is not evidence for logic, money, time, state or copy. Say so when it is the only test.
+- Prefer deterministic evidence (tests, typecheck, lint, clean build, CI) when in scope. Report the command and result. Author-reported results are not verified.
 
 ## Checklist
-- [ ] Review packet complete; verification evidence read
-- [ ] Exact diff gathered; enclosing functions, rules and plan read
+- [ ] Head SHA pinned; exact diff gathered; enclosing functions, rules and plan read
+- [ ] Review packet complete; verification evidence read or the gap stated
 - [ ] Every pass run, candidates written before judging
+- [ ] Semantic passes run: surfaces, data provenance, state matrix, cardinality, time, copy truth, optional fields, money/concurrency
 - [ ] Requirements, acceptance criteria and approved architecture checked
 - [ ] Removed behaviour accounted for
 - [ ] Callers of changed functions checked; external compatibility checked
@@ -99,4 +129,4 @@ you could not review (and why).
 - [ ] Duplication / weight / root cause considered
 - [ ] Project rule violations quoted exactly
 - [ ] Duplicates merged, ranked by severity
-- [ ] Verdict: APPROVE / CHANGES REQUESTED, with unreviewed scope stated
+- [ ] Coverage table complete; verdict names the head SHA and any unreviewed scope

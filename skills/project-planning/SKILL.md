@@ -12,6 +12,7 @@ metadata:
 
 ## Rules
 - Tasks small enough for independent implementation and verification when practical.
+- Each task uses the `work-order` skill's contract: goal, non-goals, surfaces, states, data, cardinality, time, copy truth, money/concurrency, acceptance tests, verification and definition of done.
 - Explicit dependencies between tasks; no silent coupling.
 - Acceptance criteria per task, verifiable deterministically (tests, typecheck, lint, build).
 - Phases ordered by dependency and risk; de-risk early (build the risky/thin slice first).

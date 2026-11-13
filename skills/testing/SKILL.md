@@ -22,6 +22,20 @@ metadata:
 - Meaningful assertions: not tautologies, not `expect(true)`.
 - If a test requires real infrastructure, prefer hermetic equivalents (testcontainers/in-memory/local), and mark integration tests clearly so CI separates them.
 
+## Risk matrix
+Before writing tests, list the rows that can fail:
+- every state, status, access state and permission the surface can render
+- every optional field combination
+- every date, timezone and day/month boundary
+- every join, dedupe and count
+- every event ordering, retry, double submit and partial failure
+- every entry point that reaches the changed surface
+
+For each row, write the observable outcome and the test that proves it. A row with no test is a coverage gap you must report.
+
+## Test behavior, not source text
+A test that reads a source file and matches strings proves the text exists, not that the behavior is right. It passes on a broken implementation and fails on a correct refactor. Use source-pin tests only for wiring and security invariants, such as "this route calls the guard before the mutation". Logic, money, time, state, copy and cardinality need behavioral tests through the real interface.
+
 ## Verification ladder (use highest available)
 1. Typecheck
 2. Lint
@@ -68,7 +82,9 @@ is missing instead of claiming it works.
 - Coverage gaps: list of risky behaviors untested
 
 ## Checklist
+- [ ] Risk matrix written; every risky row has a check or a stated gap
 - [ ] Deterministic runner used
+- [ ] Behavioral tests, not source pins, for logic, money, time, state and copy
 - [ ] Regression test for each fix
 - [ ] Edge cases covered (boundaries, invalid input)
 - [ ] Tests isolated and deterministic

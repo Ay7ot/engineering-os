@@ -99,6 +99,7 @@ each editor (`eng sync`). Descriptions below are the trigger lines agents see.
 | `karpathy-guidelines` | writing, reviewing, or refactoring code, before adding features or abstractions |
 | `using-git-worktrees` | starting work that must not disturb the current checkout |
 | `executing-plans` | handed a plan to implement in a separate session |
+| `work-order` | delegating implementation, testing or review, or when a change touches a user flow, data, time, money or permissions |
 
 ## Marketing, SEO and growth
 

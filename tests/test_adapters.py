@@ -121,7 +121,7 @@ check("emit -> parse preserves values and key order", not bad, bad)
 check("numbers and booleans emitted unquoted", emit_yaml({"t": "0.1", "s": "false"}) == "t: 0.1\ns: false")
 
 print("test_adapters: source validation")
-check("source loads", len(src.agents) == 8 and len(src.commands) == 6 and len(src.skills) >= 17,
+check("source loads", len(src.agents) == 8 and len(src.commands) == 7 and len(src.skills) >= 17,
       (len(src.agents), len(src.commands), len(src.skills)))
 check("exactly one primary agent (lead)", [a.name for a in src.primary()] == ["lead"])
 check("no editor-specific keys at top level",
@@ -215,8 +215,25 @@ REVIEW_VERIFY = [
     "cargo test", "cargo check", "cargo clippy",
     "make test", "make check", "make lint", "make build",
     "gh pr checks", "gh pr view*", "gh pr diff*", "gh run list*",
+    "npm run test:*", "npm run check:*", "npm run lint:*", "npm run build:*",
+    "pnpm run test:*", "pnpm run check:*",
+    "yarn run test:*", "yarn run check:*",
+    "bun run test:*", "bun run check:*",
+    "./node_modules/.bin/tsc *", "./node_modules/.bin/eslint *",
+    "./node_modules/.bin/vitest *", "./node_modules/.bin/jest *",
+    "./node_modules/.bin/playwright test *",
+    "node tests/*", "node scripts/run-*", "node scripts/check-*",
+    "python3 -m pytest *", "python3 -m unittest *",
+    "go test *", "go vet *",
+    "cargo test *", "cargo check *", "cargo clippy *",
+    "git -C * status *", "git -C * log *", "git -C * show *",
+    "git -C * diff *", "git -C * rev-parse *", "git -C * ls-files *",
+    "git -C * worktree list",
+    "gh api repos/*/pulls/*", "gh api repos/*/actions/runs*",
 ]
-REVIEW_CONTROL_DENY = ["*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*>*", "*<*",
+REVIEW_API_DENY = ["gh api * -X *", "gh api * --method *", "gh api graphql*"]
+REVIEW_CONTROL_DENY = ["go test *-exec*", "go vet *-vettool*", "cargo clippy *--fix*",
+                       "cargo test *--config*", "*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*>*", "*<*",
                        "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*"]
 
 
@@ -237,8 +254,8 @@ def denies(*keys):
 # asserted to pass through verbatim. Procedure now lives in skills, so the
 # requirement checks below point at the skill each agent must reference.
 REQUIRED_SKILLS = {
-    "lead": ["project-planning", "architecture-analysis", "memory-hygiene", "diagrams"],
-    "builder": ["test-driven-development", "simplify", "verification-before-completion"],
+    "lead": ["project-planning", "architecture-analysis", "memory-hygiene", "diagrams", "work-order"],
+    "builder": ["test-driven-development", "simplify", "verification-before-completion", "work-order"],
     "explorer": ["repository-exploration"],
     "researcher": ["technical-research"],
     "architect": ["architecture-analysis", "diagrams"],
@@ -252,8 +269,17 @@ FIXTURE_DELTAS = {  # 2026-10-10: read-only agents get read-only git in OpenCode
     "reviewer": {"bash_remove": ["git branch *"],
                  "bash_add": allows(*GIT_BRANCH_READ, *REVIEW_GIT_READ)
                              + no_git_writes("diff", "log", "show")
-                             + allows(*REVIEW_VERIFY) + denies(*REVIEW_CONTROL_DENY)},
-    "security": {"bash_add": no_git_writes("diff", "log", "show")},
+                             + allows(*REVIEW_VERIFY)
+                             + denies(*REVIEW_API_DENY)
+                             + denies(*REVIEW_CONTROL_DENY),
+                 "set": {"webfetch": "allow", "websearch": "allow"}},
+    "security": {"bash_add": allows("semgrep *", "osv-scanner *", "trivy *", "govulncheck *",
+                                    "bundle audit *", "composer audit *",
+                                    "./node_modules/.bin/audit-ci *",
+                                    "git -C * status *", "git -C * log *", "git -C * show *",
+                                    "git -C * diff *", "git -C * rev-parse *", "git -C * ls-files *")
+                             + no_git_writes("diff", "log", "show")},
+    "tester": {"set": {"webfetch": "allow", "websearch": "allow"}},
     "researcher": {"bash_remove": ["git *"],
                    "bash_add": allows("git status *", "git rev-parse *", "git log *", "git show *",
                                       "git diff *", "git ls-files *", "git describe *", "git tag",
@@ -325,6 +351,11 @@ def apply_delta(name, fm, problems):
                 problems.append(f"delta for {name}: {k!r} already in fixture")
             bash[k] = v
         fm = dict(fm, permission=dict(fm["permission"], bash=bash))
+    for k, v in d.get("set", {}).items():
+        if k not in fm.get("permission", {}):
+            problems.append(f"delta for {name}: {k!r} not in fixture permission")
+        else:
+            fm = dict(fm, permission=dict(fm["permission"], **{k: v}))
     return fm
 
 

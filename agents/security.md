@@ -18,6 +18,19 @@ permissions:
     "pip-audit *": allow
     "gitleaks *": allow
     "trufflehog *": allow
+    "semgrep *": allow
+    "osv-scanner *": allow
+    "trivy *": allow
+    "govulncheck *": allow
+    "bundle audit *": allow
+    "composer audit *": allow
+    "./node_modules/.bin/audit-ci *": allow
+    "git -C * status *": allow
+    "git -C * log *": allow
+    "git -C * show *": allow
+    "git -C * diff *": allow
+    "git -C * rev-parse *": allow
+    "git -C * ls-files *": allow
     "git diff *--output*": deny
     "git diff *--ext-diff*": deny
     "git log *--output*": deny
