@@ -85,27 +85,38 @@ difference was whether the reviewer ran the code-review passes at all.
 ## Security review of the access expansion
 
 The independent security review of the first cut found four holes in the new
-read-only access. They are fixed in this decision:
+read-only access. A second pass found the remaining write and exfiltration paths.
+They are fixed or recorded here:
 
 - `gh api repos/*/pulls/*` was removed from the reviewer. It allowed implicit
   POST with `-f`, `--method=POST` and merge or review endpoints, so the reviewer
   could write to the PR it was gating.
-- Reviewer `webfetch` and `websearch` were reverted to deny. The tool has no
-  private-address guard, and the reviewer can read host files, so the pair was an
-  SSRF and exfiltration path. The reviewer receives external documentation from
-  the lead's packet.
+- Reviewer `webfetch` and `websearch` were reverted to deny, and the security
+  agent's web access was denied for the same reason. The tool has no
+  private-address guard and the agents can read host files, so the pair is an
+  SSRF and exfiltration path. External documentation comes from the lead's
+  packet.
 - The `git -C` allow rules got blanket `*--output*`, `*--ext-diff*`, `git -C * -c *`
   and `git -c *` denies, so the OpenCode map matches the Claude guard.
 - The security agent got the reviewer's control-operator deny block, plus
-  `*--output*`, `*--report-path*`, `npm audit fix` and `semgrep --config=https`
-  denies. It had no control denies before, so every wildcard was a chaining
-  anchor.
+  `*--output*`, `*--ext-diff*`, `*--report-path*`, `npm audit fix`,
+  `semgrep --config=https/http`, `semgrep -o`, `trivy -o`, `gitleaks -o`,
+  `*--fix*`, `* -o*`, `trivy plugin` and `--generate-default-config` denies. It
+  had no control denies before, so every wildcard was a chaining anchor.
 - The reviewer's local binary allows got write-flag denies: `eslint --fix`,
   `eslint --output-file`, `jest -u`, `vitest -u`, `tsc --outFile`, `tsc --outDir`,
   `playwright --update-snapshots`. The test wildcards got `python3 -m pytest /*`,
-  `--junitxml`, `go test -toolexec` and `cargo test --manifest-path` denies.
-- The merge gate's thread step now uses GraphQL `reviewThreads`, because the REST
-  comments endpoint has no resolution field.
+  `../*`, `--junitxml`, `go test -toolexec` and `cargo test --manifest-path`
+  denies.
+- Quoted and escaped flag forms are a stopgap: targeted `git *--out*"*`,
+  `git *--ext-*"*`, `git *"-c"*` and `git *\*` denies, and the Claude guard now
+  rejects ANSI-C `$'` quoting. A parser-based guard is the durable fix and a
+  follow-up.
+- The merge gate's thread step now uses GraphQL `reviewThreads` with
+  `isResolved`, `id` and `pageInfo`, because the REST comments endpoint has no
+  resolution field.
+- The semantic contract now carries the optional-field row in the lead,
+  work-order and builder documents as well as the reviewer.
 
 ## Consequences
 
@@ -123,10 +134,12 @@ read-only access. They are fixed in this decision:
 
 - `tests/test_adapters.py` covers the seventh command, the `work-order` skill,
   the expanded read-only verification allowlist, the `git -C` read-only rules and
-  their write-form denies, the security control-operator denies, the local
-  binary write-flag denies, and the semantic-pass names in the prompts.
+  their write-form denies, the quoted-flag stopgap, the security control-operator
+  and scanner write-flag denies, the local binary write-flag denies, and the
+  semantic-contract names in the prompts.
 - `tests/test_claude_sync.sh` covers the Claude guard for `git -C`, the local
-  binary and script-variant allows, and the `go test -exec` deny under a wildcard.
+  binary and script-variant allows, the `go test -exec` deny under a wildcard,
+  the ANSI-C `$'` rejection, and the generated reviewer output and fix denies.
 - The full engine suite runs: `bash tests/test_eng.sh`,
   `python3 tests/test_adapters.py`, `bash tests/test_claude_sync.sh`,
   `bash tests/test_mcp.sh`, `python3 tests/test_ruleset.py`,
@@ -138,6 +151,9 @@ read-only access. They are fixed in this decision:
 - The reviewer can still miss a bug that needs production state, a live database
   or a real browser. The semantic contract reduces the class, it does not
   eliminate it.
+- The shell allowlist is a guardrail, not a sandbox. OpenCode matches raw
+  strings, so the quoted and escaped flag denies are a stopgap. A parser-based
+  guard, shared with the Claude hook, is the durable fix and a follow-up.
 - The expanded allowlist still executes project test and build code with the
   reviewer's permissions. The local binary and `node scripts/check-*` prefixes
   bound the command name, not the code. The external-PR fallback remains a

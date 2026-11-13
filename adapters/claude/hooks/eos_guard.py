@@ -32,7 +32,7 @@ import os
 import shlex
 import sys
 
-CONTROL = (";", "&", "|", "`", "$(", ">", "<", "\n", "\r", "=(")
+CONTROL = (";", "&", "|", "`", "$(", "$'", ">", "<", "\n", "\r", "=(")
 
 # git subcommands that change refs, the index, the worktree, remotes or config.
 GIT_MUTATING = {

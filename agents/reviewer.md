@@ -133,9 +133,15 @@ permissions:
     "*--ext-diff*": deny
     "*eslint *--fix*": deny
     "*eslint *--output-file*": deny
-    "*jest *-u*": deny
+    "*jest * -u": deny
+    "*jest * -u *": deny
+    "*jest -u": deny
+    "*jest -u *": deny
     "*jest *--updateSnapshot*": deny
-    "*vitest *-u*": deny
+    "*vitest * -u": deny
+    "*vitest * -u *": deny
+    "*vitest -u": deny
+    "*vitest -u *": deny
     "*vitest *--update*": deny
     "*playwright test *--update-snapshots*": deny
     "*tsc *--outFile*": deny
@@ -145,6 +151,24 @@ permissions:
     "*--junitxml*": deny
     "go test *-toolexec*": deny
     "cargo test *--manifest-path*": deny
+    "*--fix*": deny
+    "* -o*": deny
+    "*trivy plugin *": deny
+    "*--generate-default-config*": deny
+    "* -o *": deny
+    "* -o/*": deny
+    "* -o=*": deny
+    "*--coverprofile*": deny
+    "*--junit-xml*": deny
+    "*--config-env*": deny
+    "*--exec-path*": deny
+    "git *--out*\"*": deny
+    "git *--out*'*": deny
+    "git *--ext-*\"*": deny
+    "git *--ext-*'*": deny
+    "git *\"-c\"*": deny
+    "git *'-c'*": deny
+    "git *\\*": deny
   glob: allow
   grep: allow
   list: allow

@@ -35,6 +35,7 @@ Load the `work-order` skill to build the contract. A builder task is not ready u
 - the state matrix: every status, enum, access state and permission, with the expected label, visibility, CTA, copy and gate
 - the data map: every value's source, unit, format, null/empty behavior and aggregation
 - the cardinality map: every join, group-by, dedupe and count
+- the optional-field matrix: every combination of optional fields and the expected render
 - the time map: every date comparison, local/UTC boundary, preset and clamp
 - the copy map: every user-facing promise against the code path that runs
 - the money and concurrency map: event orderings, retries, double submits and partial failures
@@ -62,11 +63,11 @@ Otherwise do it yourself with the matching skill. Never spawn an agent to mirror
 - Review the exact head SHA of the change. A verdict is valid only for that SHA. If any commit lands after the review, re-review the delta before merge.
 - Review per mergeable change, not per phase. One branch-level review does not cover PRs created later from the same branch. If a batch produces several PRs, list the commits reviewed and re-review anything after them.
 - No verdict for the current head means no merge. A review by the author or by the same session that wrote the code does not count.
-- Give the reviewer a packet: the head SHA, diff and changed files, the work order with acceptance criteria, raw test/typecheck/lint/clean-build/CI output, project rules, and sensitive-path flags. If the reviewer works in a worktree, pass the worktree path and the diff artifact, or have it run in that worktree.
+- Give the reviewer a packet: the head SHA, diff and changed files, the work order with acceptance criteria, raw test/typecheck/lint/clean-build/CI output, project rules, and sensitive-path flags. The verdict must include the coverage table. If the reviewer works in a worktree, pass the worktree path and the diff artifact, or have it run in that worktree.
 - The reviewer may run its allowlisted verification commands. If a command is blocked, have the tester run it and pass the raw output. If the packet has no raw output, the review is conditional, not approved.
 - For an external contributor's change, have the tester or CI run verification in a disposable environment and pass the raw output. Do not ask the reviewer to execute untrusted test or build code.
-- After the PR is open, fetch the Vercel review comments and resolve every finding or record why it is a false positive. Record the thread count in project state. Do not merge with an unresolved Vercel finding.
-- Do not merge with an unresolved blocker. Record the verdict, the head SHA and the Vercel thread count in project state.
+- After the PR is open, fetch the review threads and resolve every finding or dismiss it with a reason. Record the unresolved thread count in project state. Do not merge with an open thread.
+- Do not merge with an unresolved blocker. Record the verdict, the head SHA and the unresolved thread count in project state.
 - Do not use `gh pr merge --admin` or bypass checks. Merge through the `/merge` gate.
 
 ## Subagent access

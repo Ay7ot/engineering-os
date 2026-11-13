@@ -14,8 +14,8 @@ Run the EngineeringOS merge gate. Scope: $ARGUMENTS
 4. Confirm raw verification evidence for that SHA: the test, typecheck, lint and build commands and their output. Author-reported results are not evidence.
 5. Confirm CI is green for that SHA: `gh pr checks`.
 6. Fetch the review threads and count unresolved ones. The REST comments endpoint has no resolution field, so use GraphQL:
-   `gh api graphql -f query='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){reviewThreads(first:100){nodes{isResolved path comments(first:1){nodes{author{login} body}}}}}}}' -F owner=<owner> -F repo=<repo> -F pr=<number>`
-   Every thread is either resolved or recorded as a false positive with a reason. An unresolved thread is a blocker.
+   `gh api graphql -f query='query($owner:String!,$repo:String!,$pr:Int!,$after:String){repository(owner:$owner,name:$repo){pullRequest(number:$pr){reviewThreads(first:100,after:$after){pageInfo{hasNextPage endCursor} nodes{id isResolved path comments(first:1){nodes{author{login} body}}}}}}}' -F owner=OWNER -F repo=REPO -F pr=PR`
+   Repeat with `after=<endCursor>` while `hasNextPage` is true. Resolve the thread on GitHub, or dismiss it with a reason. A dismissed thread is resolved; an open thread is a blocker.
 7. Confirm the PR is mergeable and the base is current.
 8. If any gate fails, stop. List exactly what is missing and do not merge.
 9. If all gates pass, present the evidence: PR, head SHA, reviewer verdict, verification commands and results, CI, review thread counts.

@@ -86,6 +86,8 @@ expect_contains "reviewer can run script variants" "--allow 'npm run test:*'" "$
 expect_contains "reviewer can run local binaries" "--allow './node_modules/.bin/tsc *'" "$reviewer"
 expect_contains "reviewer can inspect another worktree" "--allow 'git -C * status *'" "$reviewer"
 expect_contains "reviewer chaining deny carried" "--deny '*&*'" "$reviewer"
+expect_contains "reviewer output deny carried" "--deny '*--output*'" "$reviewer"
+expect_contains "reviewer fix deny carried" "--deny '*--fix*'" "$reviewer"
 
 expect_file "renamed skill eos-security-review" "$C/skills/eos-security-review/SKILL.md"
 expect_file "renamed skill eos-code-review" "$C/skills/eos-code-review/SKILL.md"
@@ -260,6 +262,7 @@ RV=(bash --allow 'npm test' --allow 'npm run build' --allow 'gh pr checks' --all
 [ "$(guard '{"tool_input":{"command":"gh api repos/o/r/pulls/1/merge -XPUT"}}' "${RV[@]}")" = 2 ] && ok "reviewer gh api merge blocked" || no "reviewer gh api merge blocked"
 RC=(bash --allow 'git diff *' --allow 'git log *' --deny '*--textconv*' --deny '*--show-signature*' --deny '*--output*')
 [ "$(guard '{"tool_input":{"command":"git -C /tmp diff --output=/tmp/x"}}' "${RC[@]}")" = 2 ] && ok "reviewer git -C output blocked" || no "reviewer git -C output blocked"
+[ "$(guard '{"tool_input":{"command":"git log $\u0027--output=/tmp/x\u0027"}}' "${RC[@]}")" = 2 ] && ok "reviewer ANSI-C quoting blocked" || no "reviewer ANSI-C quoting blocked"
 [ "$(guard '{"tool_input":{"command":"git diff"}}' "${RC[@]}")" = 0 ] && ok "reviewer broad git diff allowed" || no "reviewer broad git diff allowed"
 [ "$(guard '{"tool_input":{"command":"git diff --dirstat"}}' "${RC[@]}")" = 0 ] && ok "reviewer dirstat allowed" || no "reviewer dirstat allowed"
 [ "$(guard '{"tool_input":{"command":"git diff & rm -rf x"}}' "${RC[@]}")" = 2 ] && ok "reviewer broad single & blocked" || no "reviewer broad single & blocked"

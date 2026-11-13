@@ -20,6 +20,7 @@ A work order is not a summary. It is the contract the builder implements and the
 | **Non-goals** | What is deliberately out of scope. |
 | **Surfaces** | Every screen, route, handler, component and entry point the change touches, and every other entry point that reaches it. |
 | **States** | Every status, enum, access state and permission. For each: label, visibility, CTA, copy and gate. |
+| **Optional fields** | Every combination of optional fields. Does a details control open when any field is present? |
 | **Data** | Every value shown or sent: source field, unit, format, null/empty behavior, default, and whether a hardcoded value shadows real data. |
 | **Cardinality** | Every join, group-by, dedupe and count. Can a one-to-many collapse? Does a total count every row? |
 | **Time** | Every date comparison, date-only vs timestamp, local vs UTC, day/month boundary, DST, preset and clamp. |
