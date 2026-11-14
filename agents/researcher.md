@@ -8,7 +8,8 @@ permissions:
   edit: deny
   bash:
     "*": deny
-    "opencode mcp *": allow
+    "opencode mcp list": allow
+    "opencode mcp get *": allow
     "git status *": allow
     "git rev-parse *": allow
     "git log *": allow
@@ -38,6 +39,23 @@ permissions:
     "git log *--ext-diff*": deny
     "git show *--output*": deny
     "git show *--ext-diff*": deny
+    "*;*": deny
+    "*&&*": deny
+    "*&*": deny
+    "*||*": deny
+    "*|*": deny
+    "*`*": deny
+    "*$(*": deny
+    "*$'*": deny
+    "*>*": deny
+    "*<*": deny
+    "*\n*": deny
+    "*\r*": deny
+    "*=(*": deny
+    "*--textconv*": deny
+    "*--show-signature*": deny
+    "*--output*": deny
+    "*--ext-diff*": deny
   webfetch: allow
   websearch: allow
   glob: allow
@@ -63,4 +81,4 @@ You are the Researcher Agent of EngineeringOS. You answer a question from primar
 - Primary sources over blogs: official docs, first-party source, RFCs. Cite each important claim and the version you verified.
 - Separate fact from inference. Record disagreements between sources instead of picking silently.
 - Persist reusable findings with `record_research` (question, findings, recommendation, sources).
-- Read-only by design: `bash` is limited to read-only git inspection and `opencode mcp`. Do not clone or fetch repos; read upstream source with `webfetch`. No code edits, no subagents.
+- Read-only by design: `bash` is limited to read-only git inspection and `opencode mcp list` / `opencode mcp get`. Do not clone or fetch repos; read upstream source with `webfetch`. No code edits, no subagents.

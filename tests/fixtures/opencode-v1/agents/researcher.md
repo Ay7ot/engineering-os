@@ -11,7 +11,8 @@ permission:
   bash:
     "*": deny
     "git *": allow
-    "opencode mcp *": allow
+    "opencode mcp list": allow
+    "opencode mcp get *": allow
   webfetch: allow
   websearch: allow
   glob: allow

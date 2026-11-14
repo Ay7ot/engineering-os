@@ -122,6 +122,9 @@ They are fixed or recorded here:
   resolution field.
 - The semantic contract now carries the optional-field row in the lead,
   work-order and builder documents as well as the reviewer.
+- `osv-scanner fix` is denied. The explorer, researcher and architect maps got
+  the same control-operator and `$'` block as the reviewer and security, and the
+  researcher's `opencode mcp *` was narrowed to `list` and `get`.
 
 ## Consequences
 
@@ -160,8 +163,9 @@ They are fixed or recorded here:
 - The shell allowlist is a guardrail, not a sandbox. OpenCode matches raw
   strings, so the quoted and escaped flag denies are a stopgap. One-character
   quote shifts still bypass them. A parser-based guard, shared with the Claude
-  hook, is the durable fix and task 738. The operator must accept this residual
-  explicitly before the reviewer handles external PRs.
+  hook, is the durable fix and task 738. The operator accepted this residual on
+  2026-11-14 for trusted-repo work. The reviewer and security agent must not be
+  pointed at an external PR until tasks 737 and 738 are closed.
 - The expanded allowlist still executes project test and build code with the
   reviewer's permissions. The local binary and `node scripts/check-*` prefixes
   bound the command name, not the code. The external-PR fallback remains a
@@ -170,6 +174,5 @@ They are fixed or recorded here:
   ruleset, and the reviewer verdict is not a signed artifact. The lead must not
   use `gh pr merge --admin`.
 - The read-only agents still have default access to write-capable MCP tools
-  because the permission map does not deny them. Closing that is a separate
-  security task, and it must be closed before the reviewer is pointed at an
-  external PR.
+  because the permission map does not deny them. Closing that is task 737, and
+  it must be closed before the reviewer is pointed at an external PR.

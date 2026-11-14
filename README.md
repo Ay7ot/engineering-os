@@ -241,8 +241,8 @@ provenance, state matrix, cardinality, time, copy truth, optional-field render,
 and money/concurrency. It returns a coverage table with the verdict. A review
 without the table is incomplete. A change is not merged with an unresolved
 blocker. When the PR is open, the lead fetches the Vercel review comments and
-resolves every finding or records why it is a false positive; an unresolved
-thread blocks the merge.
+resolves every finding and records why a false positive is one; an open thread
+blocks the merge.
 
 The human gate always stops for: major architecture decisions, destructive DB
 migrations, production deploys, security-sensitive changes, irreversible data

@@ -33,6 +33,6 @@ Run the EngineeringOS review workflow. Scope: $ARGUMENTS
 - The verdict is valid only for the head SHA. A moving branch is not reviewed.
 - The review is not complete without verification evidence or an explicit statement of what could not be verified. Author-reported results are not verified.
 - The semantic passes and the coverage table are mandatory. No coverage table, no verdict.
-- Review threads are a second gate, not a replacement for the reviewer. Resolve or dismiss them before merge.
+- Review threads are a second gate, not a replacement for the reviewer. Resolve every conversation; a dismissal does not resolve it.
 - Prefer deterministic verification: tests, typecheck, lint, clean build, and CI status. Report the command and result.
 - Do not edit code during review unless the user asks for fixes.

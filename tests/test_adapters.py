@@ -264,7 +264,7 @@ SECURITY_EXTRA_DENY = [
     "semgrep install-semgrep-pro*", "semgrep publish*", "semgrep ci*", "semgrep login*",
     "semgrep *--remote*", "trivy repo*", "trivy aws*", "trivy server*", "trivy clean*",
     "trufflehog git http*", "trufflehog git https*",
-    "pip-audit *--out*", "*--registry*", "*--index-url*", "*--extra-index-url*",
+    "pip-audit *--out*", "osv-scanner fix*", "*--registry*", "*--index-url*", "*--extra-index-url*",
     "*--db-repository*", "govulncheck *-db*",
 ]
 SECURITY_CONTROL_DENY = ["*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*$'*", "*>*", "*<*",
@@ -297,9 +297,14 @@ REQUIRED_SKILLS = {
     "security": ["security-review"],
     "tester": ["testing", "verification-before-completion"],
 }
+READ_ONLY_CONTROL_DENY = ["*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*$'*", "*>*", "*<*",
+                          "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*",
+                          "*--output*", "*--ext-diff*"]
+
 FIXTURE_DELTAS = {  # 2026-10-10: read-only agents get read-only git in OpenCode too
     "explorer": {"bash_remove": ["git branch *", "git remote *"],
-                 "bash_add": allows(*GIT_BRANCH_READ, *GIT_REMOTE_READ) + no_git_writes("log")},
+                 "bash_add": allows(*GIT_BRANCH_READ, *GIT_REMOTE_READ) + no_git_writes("log")
+                             + denies(*READ_ONLY_CONTROL_DENY)},
     "reviewer": {"bash_remove": ["git branch *"],
                  "bash_add": allows(*GIT_BRANCH_READ, *REVIEW_GIT_READ)
                              + no_git_writes("diff", "log", "show")
@@ -319,8 +324,9 @@ FIXTURE_DELTAS = {  # 2026-10-10: read-only agents get read-only git in OpenCode
                    "bash_add": allows("git status *", "git rev-parse *", "git log *", "git show *",
                                       "git diff *", "git ls-files *", "git describe *", "git tag",
                                       "git tag --list *", "git tag -l *", *GIT_BRANCH_READ,
-                                      *GIT_REMOTE_READ) + no_git_writes("diff", "log", "show")},
-    "architect": {"bash_add": no_git_writes("log")},
+                                      *GIT_REMOTE_READ) + no_git_writes("diff", "log", "show")
+                             + denies(*READ_ONLY_CONTROL_DENY)},
+    "architect": {"bash_add": no_git_writes("log") + denies(*READ_ONLY_CONTROL_DENY)},
 }
 
 # 2026-10-21: model_tier resolves to an OpenCode selector. The fixture golden
@@ -459,7 +465,7 @@ check("feature command carries the optional-field row",
       "optional fields" in next(c for c in src.commands if c.name == "feature").body)
 check("merge command queries thread resolution",
       all(x in next(c for c in src.commands if c.name == "merge").body
-          for x in ["isResolved", "pageInfo", "id "]))
+          for x in ["isResolved", "pageInfo", "endCursor", "after", "id "]))
 check("testing skill carries data provenance and copy truth",
       all(x in next(s for s in src.skills if s.name == "testing").body
           for x in ["data provenance", "copy truth"]))
@@ -550,7 +556,9 @@ MUTATING_GIT = ["git push", "git push origin main", "git reset --hard", "git cle
                 "git -c alias.x=!sh x", "git -C /tmp push",
                 "git -C /tmp log --output=/tmp/x", "git -C /tmp diff --output=/tmp/x",
                 "git -C /tmp diff --ext-diff", "git -C /tmp -c diff.external=id diff",
-                "git -C /tmp show --output=/tmp/x HEAD"]
+                "git -C /tmp show --output=/tmp/x HEAD",
+                "git status ; rm -rf x", "git diff && rm -rf x",
+                r"git log $'\x2d\x2doutput=/tmp/x'"]
 READ_ONLY = ["explorer", "reviewer", "security", "researcher", "architect"]
 
 
@@ -672,12 +680,15 @@ SECURITY_DENY = ["semgrep --config=auto . ; git push", "gitleaks detect ; curl h
                  "trivy fs -o/tmp/x .",
                  "gitleaks detect -o /tmp/x",
                  "pip-audit --out src/app.py",
+                 "osv-scanner fix --non-interactive --strategy=in-place",
                  "npm audit --registry https://evil.example",
                  "pip-audit --index-url https://evil.example",
                  "trivy fs --db-repository https://evil.example .",
                  "govulncheck -db https://evil.example ./..."]
 leaked = [f"security: {c}" for c in SECURITY_DENY if oc_bash(by_name["security"], c) == "allow"]
 check("security cannot chain or write through the expanded scanner access", not leaked, leaked)
+check("researcher cannot write OpenCode config",
+      oc_bash(by_name["researcher"], "opencode mcp add evil --command x") != "allow")
 check("typed golden would catch quoting drift",
       parse_frontmatter("---\nt: 0.1\n---\n", typed=True)[0] != parse_frontmatter('---\nt: "0.1"\n---\n', typed=True)[0])
 

@@ -88,6 +88,7 @@ permissions:
     "trufflehog git http*": deny
     "trufflehog git https*": deny
     "pip-audit *--out*": deny
+    "osv-scanner fix*": deny
     "*--registry*": deny
     "*--index-url*": deny
     "*--extra-index-url*": deny
