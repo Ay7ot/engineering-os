@@ -38,6 +38,7 @@ permissions:
     "git show *--output*": deny
     "git show *--ext-diff*": deny
     "git -C * -c *": deny
+    "git -C *-c*": deny
     "git -c *": deny
     "*--output*": deny
     "*--ext-diff*": deny
@@ -52,7 +53,9 @@ permissions:
     "trivy *-o *": deny
     "gitleaks *-o *": deny
     "*--fix*": deny
-    "*trivy plugin *": deny
+    "trivy *plugin install*": deny
+    "trivy *plugin uninstall*": deny
+    "trivy *plugin update*": deny
     "*--generate-default-config*": deny
     "* -o *": deny
     "* -o/*": deny
@@ -76,24 +79,29 @@ permissions:
     "*--emacs-output*": deny
     "*--vim-output*": deny
     "*--gitlab-sast-output*": deny
-    "semgrep install-semgrep-pro*": deny
-    "semgrep publish*": deny
-    "semgrep ci*": deny
-    "semgrep login*": deny
+    "semgrep *install-semgrep-pro*": deny
+    "semgrep *publish*": deny
+    "semgrep *ci*": deny
+    "semgrep *login*": deny
     "semgrep *--remote*": deny
-    "trivy repo*": deny
-    "trivy aws*": deny
-    "trivy server*": deny
-    "trivy clean*": deny
-    "trufflehog git http*": deny
-    "trufflehog git https*": deny
+    "trivy *repo*": deny
+    "trivy *aws*": deny
+    "trivy *server*": deny
+    "trivy *clean*": deny
+    "trufflehog *git http*": deny
+    "trufflehog *git https*": deny
     "pip-audit *--out*": deny
-    "osv-scanner fix*": deny
+    "osv-scanner *fix*": deny
     "*--registry*": deny
     "*--index-url*": deny
     "*--extra-index-url*": deny
     "*--db-repository*": deny
     "govulncheck *-db*": deny
+    "*--diagnostics*": deny
+    "*--clone-path*": deny
+    "trivy *--java-db-repository*": deny
+    "trivy *--checks-bundle-repository*": deny
+    "trivy *--server*": deny
     "*;*": deny
     "*&&*": deny
     "*&*": deny

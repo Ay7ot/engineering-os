@@ -95,9 +95,9 @@ They are fixed or recorded here:
   private-address guard and the agents can read host files, so the pair is an
   SSRF and exfiltration path. External documentation comes from the lead's
   packet.
-- The `git -C` allow rules got blanket `*--output*`, `*--ext-diff*`, `git -C * -c *`
-  and `git -c *` denies, so the OpenCode map matches the Claude guard for the
-  literal forms. Quote-split forms remain a stopgap.
+- The `git -C` allow rules got blanket `*--output*`, `*--ext-diff*`, `git -C * -c *`,
+  `git -C *-c*` and `git -c *` denies, so the OpenCode map matches the Claude
+  guard for the literal and compact forms. Quote-split forms remain a stopgap.
 - The security agent got the reviewer's control-operator deny block, plus
   `*--output*`, `*--ext-diff*`, `*--report-path*`, `npm audit fix`,
   `semgrep --config=https/http`, `semgrep -o`, `trivy -o`, `gitleaks -o`,
@@ -116,7 +116,8 @@ They are fixed or recorded here:
   `publish`, `ci`, `login`, `--remote`, Trivy `repo`/`aws`/`server`/`clean`,
   TruffleHog git URLs, the Go single-dash profile flags, `pip-audit --out`, and
   the scanner URL overrides (`--registry`, `--index-url`, `--db-repository`,
-  `govulncheck -db`) are denied.
+  `govulncheck -db`) are denied. The scanner subcommand denies are
+  flag-tolerant, so a global flag before the subcommand does not bypass them.
 - The merge gate's thread step now uses GraphQL `reviewThreads` with
   `isResolved`, `id` and `pageInfo`, because the REST comments endpoint has no
   resolution field.

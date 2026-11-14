@@ -129,6 +129,7 @@ permissions:
     "*--textconv*": deny
     "*--show-signature*": deny
     "git -C * -c *": deny
+    "git -C *-c*": deny
     "git -c *": deny
     "*--output*": deny
     "*--ext-diff*": deny
