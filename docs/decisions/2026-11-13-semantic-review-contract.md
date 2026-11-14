@@ -10,31 +10,32 @@ reviewer a verification allowlist. Real sessions showed three gaps that the gate
 did not close.
 
 1. **The review checked what the brief asked, not what the product does.** On
-   2026-11-05 the reviewer finished a 47-file redesign review at 20:39 with one
-   blocker and eleven should-fix items. Between 20:52 and 20:57 Vercel posted
-   three findings on PR 130: newly `enrolled` care plans shown as `Active`,
-   refills deduped by `orderId` with medications hidden and undercounted, and a
-   review screen promising a charge after dispatch when card holds were off. All
-   three were fixed before the 21:01 merge. The review brief covered behavior
-   preservation, money and safety paths, contract tests, mobile, accessibility
-   and tokens. It did not cover state semantics, cardinality or time.
-2. **The review gate ran per phase, not per PR.** After the 20:39 review, PRs
-   133 through 138 were merged on 2026-11-06 with no further reviewer session.
-   PRs 129, 134 and 138 had no reviewer session at all. Vercel caught bugs on
-   those PRs, and the lead fixed the threads before merging. In practice Vercel
-   was the first semantic reviewer.
-3. **The reviewer often did not run the playbook or the verification.** Only 10
-   of 60 reviewer sessions loaded `code-review`. 9 of 109 builder sessions loaded
-   `test-driven-development`. 1 of 23 tester sessions loaded `testing`. In one
-   review, `git -C ...` was rejected by the allowlist, so the reviewer read files
-   and accepted author-reported results.
+   one 47-file redesign review, the reviewer finished with one blocker and
+   eleven should-fix items. The external review agent then posted three
+   findings: a status value rendered under the wrong label, a dedupe that
+   collapsed a one-to-many and undercounted, and copy that promised a charge
+   timing the code did not implement. All three were fixed before the merge.
+   The review brief covered behavior preservation, money and safety paths,
+   contract tests, mobile, accessibility and tokens. It did not cover state
+   semantics, cardinality or time.
+2. **The review gate ran per phase, not per PR.** After the branch review, a
+   batch of PRs created later from the same branch was merged with no further
+   reviewer session. Several of those PRs had no reviewer at all. The external
+   review agent caught bugs on them, and the lead fixed the threads before
+   merging. In practice the external agent was the first semantic reviewer.
+3. **The reviewer often did not run the playbook or the verification.** Most
+   reviewer sessions did not load `code-review`, most builder sessions did not
+   load `test-driven-development`, and almost no tester session loaded
+   `testing`. In one review, the shell allowlist rejected the worktree
+   inspection command, so the reviewer read files and accepted author-reported
+   results.
 
-The model was not the bottleneck. A blind replay of PR 138, the double-charge
-race Vercel caught, used the current `deepseek-v4.1-flash#max` reviewer on the
-buggy commit `5aecdd4`. It found the exact bug Vercel found and two more
-blockers, including the missing serialization and the unconditional session-id
-write. A generic brief and a `deepseek-v4-pro` reviewer also found it. The
-difference was whether the reviewer ran the code-review passes at all.
+The model was not the bottleneck. A blind replay of a payment bug the external
+review agent caught used the current `deepseek-v4.1-flash#max` reviewer on the
+buggy commit. It found the exact bug and two more blockers, including the
+missing serialization and the unconditional session-id write. A generic brief
+and a `deepseek-v4-pro` reviewer also found it. The difference was whether the
+reviewer ran the code-review passes at all.
 
 ## Decision
 
@@ -68,9 +69,9 @@ difference was whether the reviewer ran the code-review passes at all.
 ## Alternatives considered
 
 - **Upgrade the reviewer model.** Rejected as the primary fix. The current model
-  found the PR 138 bug when the brief asked the right questions and the reviewer
+  found the payment bug when the brief asked the right questions and the reviewer
   ran the passes. A stronger model is a margin, not a substitute for the brief.
-- **Rely on the Vercel review agent.** Rejected as the primary gate. It is
+- **Rely on the external review agent.** Rejected as the primary gate. It is
   post-PR, outside our control, and it reviews after the code is already written
   and CI is green. Keep it as a second gate and a free recall check.
 - **Give the reviewer full shell access.** Rejected. It loses the source-edit
@@ -148,7 +149,7 @@ They are fixed or recorded here:
 - The engine gains a `work-order` skill and a `/merge` command, and the
   `code-review` and `testing` skills gain the semantic passes.
 - The model tiers and the default model do not change. Cost is roughly flat.
-- Vercel findings become a quality metric: the target is no new semantic finding
+- External review findings become a quality metric: the target is no new semantic finding
   on a reviewed PR. A finding becomes a new contract row and a regression test.
 
 ## Validation
