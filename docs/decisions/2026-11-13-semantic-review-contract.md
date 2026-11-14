@@ -112,7 +112,7 @@ They are fixed or recorded here:
 - Quoted and escaped flag forms are a stopgap: targeted `git *--out*"*`,
   `git *--ext-*"*`, `git *"-c"*`, `git *\*`, `*$'*`, `*$"*`, `*${*` and `*$@*`
   denies. The Claude guard rejects ANSI-C `$'`, `$"`, `${` and `$@` expansion.
-  A parser-based guard is the durable fix and task 738.
+  A parser-based guard is the durable fix and a follow-up.
 - Semgrep `--autofix`, the `--*-output` URL family, `install-semgrep-pro`,
   `publish`, `ci`, `login`, `--remote`, Trivy `repo`/`aws`/`server`/`clean`,
   TruffleHog git URLs, the Go single-dash profile flags, `pip-audit --out`,
@@ -176,9 +176,9 @@ They are fixed or recorded here:
 - The shell allowlist is a guardrail, not a sandbox. OpenCode matches raw
   strings, so the quoted and escaped flag denies are a stopgap. One-character
   quote shifts still bypass them. A parser-based guard, shared with the Claude
-  hook, is the durable fix and task 738. The operator accepted this residual on
+  hook, is the durable fix and a follow-up. The operator accepted this residual on
   2026-11-14 for trusted-repo work. The reviewer and security agent must not be
-  pointed at an external PR until tasks 737 and 738 are closed.
+  pointed at an external PR until the MCP and parser follow-ups are closed.
 - The expanded allowlist still executes project test and build code with the
   reviewer's permissions. The local binary and `node scripts/check-*` prefixes
   bound the command name, not the code. The external-PR fallback remains a
@@ -187,10 +187,10 @@ They are fixed or recorded here:
   ruleset, and the reviewer verdict is not a signed artifact. The lead must not
   use `gh pr merge --admin`.
 - The read-only agents still have default access to write-capable MCP tools
-  because the permission map does not deny them. Closing that is task 737, and
+  because the permission map does not deny them. Closing that is a follow-up, and
   it must be closed before any read-only agent that can see untrusted content is
   pointed at an external PR.
 - The architect can edit its own `.md` definition in OpenCode because the editor
-  has no `--protect` equivalent. Task 739 covers the edit deny or protect plugin.
+  has no `--protect` equivalent. A follow-up covers the edit deny or protect plugin.
   It is pre-existing, not introduced by this branch, and must be closed before
   the architect handles untrusted content.
