@@ -109,9 +109,9 @@ They are fixed or recorded here:
   `../*`, `--junitxml`, `go test -toolexec` and `cargo test --manifest-path`
   denies.
 - Quoted and escaped flag forms are a stopgap: targeted `git *--out*"*`,
-  `git *--ext-*"*`, `git *"-c"*`, `git *\*` and `*$'*` denies. The Claude
-  guard also rejects ANSI-C `$'` quoting. A parser-based guard is the durable
-  fix and task 738.
+  `git *--ext-*"*`, `git *"-c"*`, `git *\*`, `*$'*`, `*$"*`, `*${*` and `*$@*`
+  denies. The Claude guard rejects ANSI-C `$'`, `$"`, `${` and `$@` expansion.
+  A parser-based guard is the durable fix and task 738.
 - Semgrep `--autofix`, the `--*-output` URL family, `install-semgrep-pro`,
   `publish`, `ci`, `login`, `--remote`, Trivy `repo`/`aws`/`server`/`clean`,
   TruffleHog git URLs, the Go single-dash profile flags, `pip-audit --out`,
@@ -127,10 +127,16 @@ They are fixed or recorded here:
 - The semantic contract now carries the optional-field row in the lead,
   work-order and builder documents as well as the reviewer.
 - `osv-scanner fix` is denied. The explorer, researcher and architect maps got
-  the same control-operator, `$'`, quoted-flag and escaped-flag block as the
-  reviewer and security, and the researcher's `opencode mcp *` was narrowed to
-  `list` and `get`. The researcher prompt now forbids printing or persisting
-  secrets from `opencode mcp get`.
+  the same control-operator, `$'`, `$"`, `${`, `$@`, quoted-flag and escaped-flag
+  block as the reviewer and security, and the researcher's `opencode mcp *` was
+  narrowed to `list` and `get`. The researcher prompt and the
+  `technical-research` skill now forbid printing or persisting secrets from
+  `opencode mcp get`.
+- `gitleaks install`/`generate`, `semgrep --generate-config`, `trivy --config`,
+  `npm audit *fix*`, `gitleaks -r`, `semgrep -o`, `trivy --cache-dir`,
+  `eslint --cache-location` and `tsc --tsBuildInfoFile`/`--declarationDir` are
+  denied. The broad `* -o*` deny is restored, so the attached short-option form
+  is covered as the ADR claims.
 
 ## Consequences
 
@@ -183,3 +189,7 @@ They are fixed or recorded here:
   because the permission map does not deny them. Closing that is task 737, and
   it must be closed before any read-only agent that can see untrusted content is
   pointed at an external PR.
+- The architect can edit its own `.md` definition in OpenCode because the editor
+  has no `--protect` equivalent. Task 739 covers the edit deny or protect plugin.
+  It is pre-existing, not introduced by this branch, and must be closed before
+  the architect handles untrusted content.

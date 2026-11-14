@@ -231,7 +231,7 @@ REVIEW_VERIFY = [
 ]
 REVIEW_CONTROL_DENY = [
     "go test *-exec*", "go vet *-vettool*", "cargo clippy *--fix*", "cargo test *--config*",
-    "*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*$'*", "*>*", "*<*",
+    "*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*$'*", '*$"*', "*${*", "*$@*", "*>*", "*<*",
     "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*",
     "git -C * -c *", "git -C *-c*", "git -c *", "*--output*", "*--ext-diff*",
     "*eslint *--fix*", "*eslint *--output-file*", "*eslint *--cache-location*",
@@ -242,7 +242,7 @@ REVIEW_CONTROL_DENY = [
     "python3 -m pytest /*", "python3 -m pytest ../*", "*--junitxml*",
     "go test *-toolexec*", "cargo test *--manifest-path*",
     "*--fix*", "*trivy plugin *", "*--generate-default-config*",
-    "* -o *", "* -o/*", "* -o=*", "*--coverprofile*", "*-coverprofile*", "*-cpuprofile*", "*-memprofile*", "*-trace*", "*-outputdir*", "*--junit-xml*",
+    "* -o *", "* -o/*", "* -o=*", "* -o*", "*--coverprofile*", "*-coverprofile*", "*-cpuprofile*", "*-memprofile*", "*-trace*", "*-outputdir*", "*--junit-xml*",
     "*--config-env*", "*--exec-path*",
     'git *--out*"*', "git *--out*'*", 'git *--ext-*"*', "git *--ext-*'*",
     'git *"-c"*', "git *'-c'*", r"git *\*",
@@ -274,6 +274,7 @@ SECURITY_EXTRA_DENY = [
     '* -o *',
     '* -o/*',
     '* -o=*',
+    '* -o*',
     '*--coverprofile*',
     '*--junit-xml*',
     '*--config-env*',
@@ -304,6 +305,10 @@ SECURITY_EXTRA_DENY = [
     'trivy *clean*',
     'trufflehog *git*http*',
     'trufflehog *git*https*',
+    'gitleaks *install*',
+    'gitleaks *generate*',
+    'semgrep *--generate-config*',
+    'trivy *--config*',
     'pip-audit *--out*',
     'osv-scanner *fix*',
     '*--registry*',
@@ -317,7 +322,7 @@ SECURITY_EXTRA_DENY = [
     'trivy *--checks-bundle-repository*',
     'trivy *--server*',
 ]
-SECURITY_CONTROL_DENY = ["*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*$'*", "*>*", "*<*",
+SECURITY_CONTROL_DENY = ["*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*$'*", '*$"*', "*${*", "*$@*", "*>*", "*<*",
                          "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*"]
 
 
@@ -347,7 +352,7 @@ REQUIRED_SKILLS = {
     "security": ["security-review"],
     "tester": ["testing", "verification-before-completion"],
 }
-READ_ONLY_CONTROL_DENY = ["*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*$'*", "*>*", "*<*",
+READ_ONLY_CONTROL_DENY = ["*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*$'*", '*$"*', "*${*", "*$@*", "*>*", "*<*",
                           "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*",
                           "*--output*", "*--ext-diff*",
                           'git *--out*"*', "git *--out*'*", 'git *--ext-*"*', "git *--ext-*'*",
@@ -612,7 +617,8 @@ MUTATING_GIT = ["git push", "git push origin main", "git reset --hard", "git cle
                 "git -C /tmp show --output=/tmp/x HEAD",
                 "git status ; rm -rf x", "git diff && rm -rf x",
                 r"git log $'\x2d\x2doutput=/tmp/x'",
-                r"git log --out\put=/tmp/x", 'git log --out"put"=/tmp/x', r"git diff --ext\-diff"]
+                r"git log --out\put=/tmp/x", 'git log --out"put"=/tmp/x', r"git diff --ext\-diff",
+                r"git log --outp${x:-}ut=/tmp/x", 'git log --outp$"u"t=/tmp/x', "git log --outp$@ut=/tmp/x"]
 READ_ONLY = ["explorer", "reviewer", "security", "researcher", "architect"]
 
 
@@ -760,7 +766,13 @@ SECURITY_DENY = ["semgrep --config=auto . ; git push", "gitleaks detect ; curl h
                  "trivy plugin  install",
                  "trufflehog git  https://evil.example/repo",
                  "semgrep -o/tmp/x .",
-                 "trivy fs --cache-dir /tmp/x ."]
+                 "trivy fs --cache-dir /tmp/x .",
+                 "gitleaks install",
+                 "gitleaks generate config",
+                 "semgrep --generate-config",
+                 "trivy --config .trivy.yaml fs .",
+                 "trivy fs -opackage.json .",
+                 "pip-audit -opackage.json"]
 leaked = [f"security: {c}" for c in SECURITY_DENY if oc_bash(by_name["security"], c) == "allow"]
 check("security cannot chain or write through the expanded scanner access", not leaked, leaked)
 check("researcher cannot write OpenCode config",

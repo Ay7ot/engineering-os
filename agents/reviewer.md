@@ -121,6 +121,9 @@ permissions:
     "*`*": deny
     "*$(*": deny
     "*$'*": deny
+    '*$"*': deny
+    "*${*": deny
+    "*$@*": deny
     "*>*": deny
     "*<*": deny
     "*\n*": deny
@@ -162,6 +165,7 @@ permissions:
     "* -o *": deny
     "* -o/*": deny
     "* -o=*": deny
+    "* -o*": deny
     "*--coverprofile*": deny
     "*-coverprofile*": deny
     "*-cpuprofile*": deny

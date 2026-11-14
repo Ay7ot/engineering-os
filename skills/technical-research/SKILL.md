@@ -43,6 +43,7 @@ metadata:
 - Sources (title, URL or path, date/version, what it supported)
 
 ## Rules
+- Never print or persist a secret, environment value, header or `.env` value in a research note or memory record.
 - Do not invent APIs, versions, or configuration formats. Verify against primary sources.
 - Cite sources next to the claims they support. Distinguish fact from inference.
 - Never cite a source you did not actually read.

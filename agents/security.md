@@ -63,6 +63,7 @@ permissions:
     "* -o *": deny
     "* -o/*": deny
     "* -o=*": deny
+    "* -o*": deny
     "*--coverprofile*": deny
     "*--junit-xml*": deny
     "*--config-env*": deny
@@ -93,6 +94,10 @@ permissions:
     "trivy *clean*": deny
     "trufflehog *git*http*": deny
     "trufflehog *git*https*": deny
+    "gitleaks *install*": deny
+    "gitleaks *generate*": deny
+    "semgrep *--generate-config*": deny
+    "trivy *--config*": deny
     "pip-audit *--out*": deny
     "osv-scanner *fix*": deny
     "*--registry*": deny
@@ -113,6 +118,9 @@ permissions:
     "*`*": deny
     "*$(*": deny
     "*$'*": deny
+    '*$"*': deny
+    "*${*": deny
+    "*$@*": deny
     "*>*": deny
     "*<*": deny
     "*\n*": deny

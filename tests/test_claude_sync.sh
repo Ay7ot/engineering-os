@@ -263,6 +263,9 @@ RV=(bash --allow 'npm test' --allow 'npm run build' --allow 'gh pr checks' --all
 RC=(bash --allow 'git diff *' --allow 'git log *' --deny '*--textconv*' --deny '*--show-signature*' --deny '*--output*')
 [ "$(guard '{"tool_input":{"command":"git -C /tmp diff --output=/tmp/x"}}' "${RC[@]}")" = 2 ] && ok "reviewer git -C output blocked" || no "reviewer git -C output blocked"
 [ "$(guard '{"tool_input":{"command":"git log $\u0027\\x2d\\x2dtextconv\u0027"}}' "${RC[@]}")" = 2 ] && ok "reviewer ANSI-C quoting blocked" || no "reviewer ANSI-C quoting blocked"
+[ "$(guard '{"tool_input":{"command":"git log --outp$@ut=/tmp/x"}}' "${RC[@]}")" = 2 ] && ok "reviewer \$@ expansion blocked" || no "reviewer \$@ expansion blocked"
+[ "$(guard '{"tool_input":{"command":"git log --outp${x:-}ut=/tmp/x"}}' "${RC[@]}")" = 2 ] && ok "reviewer \${} expansion blocked" || no "reviewer \${} expansion blocked"
+[ "$(guard '{"tool_input":{"command":"git log --outp$\u0022u\u0022t=/tmp/x"}}' "${RC[@]}")" = 2 ] && ok "reviewer \$\" expansion blocked" || no "reviewer \$\" expansion blocked"
 [ "$(guard '{"tool_input":{"command":"git diff"}}' "${RC[@]}")" = 0 ] && ok "reviewer broad git diff allowed" || no "reviewer broad git diff allowed"
 [ "$(guard '{"tool_input":{"command":"git diff --dirstat"}}' "${RC[@]}")" = 0 ] && ok "reviewer dirstat allowed" || no "reviewer dirstat allowed"
 [ "$(guard '{"tool_input":{"command":"git diff & rm -rf x"}}' "${RC[@]}")" = 2 ] && ok "reviewer broad single & blocked" || no "reviewer broad single & blocked"

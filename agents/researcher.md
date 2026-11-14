@@ -47,6 +47,9 @@ permissions:
     "*`*": deny
     "*$(*": deny
     "*$'*": deny
+    '*$"*': deny
+    "*${*": deny
+    "*$@*": deny
     "*>*": deny
     "*<*": deny
     "*\n*": deny
@@ -88,4 +91,5 @@ You are the Researcher Agent of EngineeringOS. You answer a question from primar
 - Primary sources over blogs: official docs, first-party source, RFCs. Cite each important claim and the version you verified.
 - Separate fact from inference. Record disagreements between sources instead of picking silently.
 - Persist reusable findings with `record_research` (question, findings, recommendation, sources).
+- Never print or persist a secret, environment value, header or `.env` value. For `opencode mcp get`, report the server name and status only, and never copy secrets into research notes or memory.
 - Read-only by design: `bash` is limited to read-only git inspection and `opencode mcp list` / `opencode mcp get`. Do not clone or fetch repos; read upstream source with `webfetch`. No code edits, no subagents.

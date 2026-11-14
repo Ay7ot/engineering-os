@@ -21,6 +21,9 @@ permissions:
     "*`*": deny
     "*$(*": deny
     "*$'*": deny
+    '*$"*': deny
+    "*${*": deny
+    "*$@*": deny
     "*>*": deny
     "*<*": deny
     "*\n*": deny
