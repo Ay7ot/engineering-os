@@ -135,6 +135,7 @@ permissions:
     "*--ext-diff*": deny
     "*eslint *--fix*": deny
     "*eslint *--output-file*": deny
+    "*eslint *--cache-location*": deny
     "*jest * -u": deny
     "*jest * -u *": deny
     "*jest -u": deny
@@ -148,6 +149,8 @@ permissions:
     "*playwright test *--update-snapshots*": deny
     "*tsc *--outFile*": deny
     "*tsc *--outDir*": deny
+    "*tsc *--tsBuildInfoFile*": deny
+    "*tsc *--declarationDir*": deny
     "python3 -m pytest /*": deny
     "python3 -m pytest ../*": deny
     "*--junitxml*": deny

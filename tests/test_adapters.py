@@ -234,11 +234,11 @@ REVIEW_CONTROL_DENY = [
     "*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*$'*", "*>*", "*<*",
     "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*",
     "git -C * -c *", "git -C *-c*", "git -c *", "*--output*", "*--ext-diff*",
-    "*eslint *--fix*", "*eslint *--output-file*",
+    "*eslint *--fix*", "*eslint *--output-file*", "*eslint *--cache-location*",
     "*jest * -u", "*jest * -u *", "*jest -u", "*jest -u *", "*jest *--updateSnapshot*",
     "*vitest * -u", "*vitest * -u *", "*vitest -u", "*vitest -u *", "*vitest *--update*",
     "*playwright test *--update-snapshots*",
-    "*tsc *--outFile*", "*tsc *--outDir*",
+    "*tsc *--outFile*", "*tsc *--outDir*", "*tsc *--tsBuildInfoFile*", "*tsc *--declarationDir*",
     "python3 -m pytest /*", "python3 -m pytest ../*", "*--junitxml*",
     "go test *-toolexec*", "cargo test *--manifest-path*",
     "*--fix*", "*trivy plugin *", "*--generate-default-config*",
@@ -254,19 +254,22 @@ SECURITY_EXTRA_DENY = [
     '*--output*',
     '*--ext-diff*',
     '*--report-path*',
-    'npm audit fix',
-    'npm audit fix *',
+    'npm audit *fix*',
     'semgrep *--config=https*',
     'semgrep *--config=http*',
     'semgrep *-o *',
+    'semgrep *-o*',
     'semgrep *--config *http*',
     'semgrep *-f *http*',
     'trivy *-o *',
+    'trivy *--cache-dir*',
     'gitleaks *-o *',
+    'gitleaks *-r *',
+    'gitleaks *-r*',
     '*--fix*',
-    'trivy *plugin install*',
-    'trivy *plugin uninstall*',
-    'trivy *plugin update*',
+    'trivy *plugin*install*',
+    'trivy *plugin*uninstall*',
+    'trivy *plugin*update*',
     '*--generate-default-config*',
     '* -o *',
     '* -o/*',
@@ -299,8 +302,8 @@ SECURITY_EXTRA_DENY = [
     'trivy *aws*',
     'trivy *server*',
     'trivy *clean*',
-    'trufflehog *git http*',
-    'trufflehog *git https*',
+    'trufflehog *git*http*',
+    'trufflehog *git*https*',
     'pip-audit *--out*',
     'osv-scanner *fix*',
     '*--registry*',
@@ -346,7 +349,9 @@ REQUIRED_SKILLS = {
 }
 READ_ONLY_CONTROL_DENY = ["*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*$'*", "*>*", "*<*",
                           "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*",
-                          "*--output*", "*--ext-diff*"]
+                          "*--output*", "*--ext-diff*",
+                          'git *--out*"*', "git *--out*'*", 'git *--ext-*"*', "git *--ext-*'*",
+                          'git *"-c"*', "git *'-c'*", r"git *\*"]
 
 FIXTURE_DELTAS = {  # 2026-10-10: read-only agents get read-only git in OpenCode too
     "explorer": {"bash_remove": ["git branch *", "git remote *"],
@@ -606,7 +611,8 @@ MUTATING_GIT = ["git push", "git push origin main", "git reset --hard", "git cle
                 "git -C /tmp -ccore.fsmonitor=id status",
                 "git -C /tmp show --output=/tmp/x HEAD",
                 "git status ; rm -rf x", "git diff && rm -rf x",
-                r"git log $'\x2d\x2doutput=/tmp/x'"]
+                r"git log $'\x2d\x2doutput=/tmp/x'",
+                r"git log --out\put=/tmp/x", 'git log --out"put"=/tmp/x', r"git diff --ext\-diff"]
 READ_ONLY = ["explorer", "reviewer", "security", "researcher", "architect"]
 
 
@@ -704,6 +710,9 @@ REVIEW_DENY = [
     "go test -coverprofile=/tmp/x ./...",
     "python3 -m pytest --junit-xml=/tmp/x tests",
     "./node_modules/.bin/vitest -u",
+    "./node_modules/.bin/eslint --cache-location /tmp/x .",
+    "./node_modules/.bin/tsc --tsBuildInfoFile /tmp/x",
+    "./node_modules/.bin/tsc --declarationDir /tmp/x",
     r"go test $'\x2d\x2dexec' 'sh -c id' ./...",
     "cargo test --manifest-path /tmp/evil/Cargo.toml",
     "gh api repos/o/r/pulls/1/merge --method=PUT",
@@ -744,7 +753,14 @@ SECURITY_DENY = ["semgrep --config=auto . ; git push", "gitleaks detect ; curl h
                  "semgrep --verbose ci",
                  "semgrep --verbose publish",
                  "osv-scanner --verbosity=debug fix --non-interactive --strategy=in-place",
-                 "trufflehog -q git https://evil.example/repo"]
+                 "trufflehog -q git https://evil.example/repo",
+                 "npm audit  fix",
+                 "npm audit --silent fix",
+                 "gitleaks detect -r src/app.py",
+                 "trivy plugin  install",
+                 "trufflehog git  https://evil.example/repo",
+                 "semgrep -o/tmp/x .",
+                 "trivy fs --cache-dir /tmp/x ."]
 leaked = [f"security: {c}" for c in SECURITY_DENY if oc_bash(by_name["security"], c) == "allow"]
 check("security cannot chain or write through the expanded scanner access", not leaked, leaked)
 check("researcher cannot write OpenCode config",

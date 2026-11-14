@@ -19,7 +19,7 @@ Run the EngineeringOS merge gate. Scope: $ARGUMENTS
 7. Confirm the PR is mergeable and the base is current.
 8. If any gate fails, stop. List exactly what is missing and do not merge.
 9. If all gates pass, present the evidence: PR, head SHA, reviewer verdict, verification commands and results, CI, review thread counts.
-10. Ask with the `question` tool before merging when the change is sensitive: auth, payments, PII or PHI, data or migrations, concurrency, build config, public APIs, dependencies, secrets, infrastructure, deployment or production. For a routine change, merge with the project's convention.
+10. Ask with the `question` tool before merging when the change hits the approval gate in `agents/lead.md`: major architecture, destructive migrations, production deploys, security-sensitive changes, irreversible data operations, significant infrastructure, major product behavior or substantial cost. For a routine change, merge with the project's convention.
 11. Confirm the merge commit, the CI run on the base branch, and any deploy. Record the verdict, head SHA and review thread count in project state.
 
 ## Discipline

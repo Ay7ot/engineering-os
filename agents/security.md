@@ -43,19 +43,22 @@ permissions:
     "*--output*": deny
     "*--ext-diff*": deny
     "*--report-path*": deny
-    "npm audit fix": deny
-    "npm audit fix *": deny
+    "npm audit *fix*": deny
     "semgrep *--config=https*": deny
     "semgrep *--config=http*": deny
     "semgrep *-o *": deny
+    "semgrep *-o*": deny
     "semgrep *--config *http*": deny
     "semgrep *-f *http*": deny
     "trivy *-o *": deny
+    "trivy *--cache-dir*": deny
     "gitleaks *-o *": deny
+    "gitleaks *-r *": deny
+    "gitleaks *-r*": deny
     "*--fix*": deny
-    "trivy *plugin install*": deny
-    "trivy *plugin uninstall*": deny
-    "trivy *plugin update*": deny
+    "trivy *plugin*install*": deny
+    "trivy *plugin*uninstall*": deny
+    "trivy *plugin*update*": deny
     "*--generate-default-config*": deny
     "* -o *": deny
     "* -o/*": deny
@@ -88,8 +91,8 @@ permissions:
     "trivy *aws*": deny
     "trivy *server*": deny
     "trivy *clean*": deny
-    "trufflehog *git http*": deny
-    "trufflehog *git https*": deny
+    "trufflehog *git*http*": deny
+    "trufflehog *git*https*": deny
     "pip-audit *--out*": deny
     "osv-scanner *fix*": deny
     "*--registry*": deny

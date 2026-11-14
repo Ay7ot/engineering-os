@@ -44,6 +44,13 @@ permissions:
     "*--show-signature*": deny
     "*--output*": deny
     "*--ext-diff*": deny
+    "git *--out*\"*": deny
+    "git *--out*'*": deny
+    "git *--ext-*\"*": deny
+    "git *--ext-*'*": deny
+    "git *\"-c\"*": deny
+    "git *'-c'*": deny
+    "git *\\*": deny
   glob: allow
   grep: allow
   list: allow

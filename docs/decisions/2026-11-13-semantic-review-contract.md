@@ -57,8 +57,8 @@ difference was whether the reviewer ran the code-review passes at all.
    mergeable base. Sensitive changes still stop for human approval. This is a
    process control; GitHub branch protection enforces review, last-push approval
    and thread resolution for non-admin contributors.
-6. Expand read-only verification access for the reviewer, tester and security
-   agents: common package scripts, local test and build binaries, read-only
+6. Expand read-only verification access for the reviewer and security agents
+   (the tester is full-capability by design): common package scripts, local test and build binaries, read-only
    `git -C` inspection, package audits, and no web access for the reviewer or
    security agent. External documentation comes from the lead's packet. Keep the source-edit, install, publish, deploy, merge and
    write-command boundary. The reviewer does not get `gh api` or web access.
@@ -99,7 +99,7 @@ They are fixed or recorded here:
   `git -C *-c*` and `git -c *` denies, so the OpenCode map matches the Claude
   guard for the literal and compact forms. Quote-split forms remain a stopgap.
 - The security agent got the reviewer's control-operator deny block, plus
-  `*--output*`, `*--ext-diff*`, `*--report-path*`, `npm audit fix`,
+  `*--output*`, `*--ext-diff*`, `*--report-path*`, `npm audit *fix*`,
   `semgrep --config=https/http`, `semgrep -o`, `trivy -o`, `gitleaks -o`,
   `*--fix*`, `* -o*`, `trivy plugin` and `--generate-default-config` denies. It
   had no control denies before, so every wildcard was a chaining anchor.
@@ -114,18 +114,23 @@ They are fixed or recorded here:
   fix and task 738.
 - Semgrep `--autofix`, the `--*-output` URL family, `install-semgrep-pro`,
   `publish`, `ci`, `login`, `--remote`, Trivy `repo`/`aws`/`server`/`clean`,
-  TruffleHog git URLs, the Go single-dash profile flags, `pip-audit --out`, and
-  the scanner URL overrides (`--registry`, `--index-url`, `--db-repository`,
+  TruffleHog git URLs, the Go single-dash profile flags, `pip-audit --out`,
+  `npm audit *fix*`, `gitleaks -r`, `semgrep -o`, `trivy --cache-dir`,
+  `eslint --cache-location`, `tsc --tsBuildInfoFile`/`--declarationDir`, and the
+  scanner URL overrides (`--registry`, `--index-url`, `--db-repository`,
   `govulncheck -db`) are denied. The scanner subcommand denies are
-  flag-tolerant, so a global flag before the subcommand does not bypass them.
+  position-tolerant and use substring matching where whitespace or an
+  interleaved flag could otherwise bypass them.
 - The merge gate's thread step now uses GraphQL `reviewThreads` with
   `isResolved`, `id` and `pageInfo`, because the REST comments endpoint has no
   resolution field.
 - The semantic contract now carries the optional-field row in the lead,
   work-order and builder documents as well as the reviewer.
 - `osv-scanner fix` is denied. The explorer, researcher and architect maps got
-  the same control-operator and `$'` block as the reviewer and security, and the
-  researcher's `opencode mcp *` was narrowed to `list` and `get`.
+  the same control-operator, `$'`, quoted-flag and escaped-flag block as the
+  reviewer and security, and the researcher's `opencode mcp *` was narrowed to
+  `list` and `get`. The researcher prompt now forbids printing or persisting
+  secrets from `opencode mcp get`.
 
 ## Consequences
 
@@ -176,4 +181,5 @@ They are fixed or recorded here:
   use `gh pr merge --admin`.
 - The read-only agents still have default access to write-capable MCP tools
   because the permission map does not deny them. Closing that is task 737, and
-  it must be closed before the reviewer is pointed at an external PR.
+  it must be closed before any read-only agent that can see untrusted content is
+  pointed at an external PR.
