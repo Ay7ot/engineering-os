@@ -52,7 +52,6 @@ permissions:
     "trivy *-o *": deny
     "gitleaks *-o *": deny
     "*--fix*": deny
-    "* -o*": deny
     "*trivy plugin *": deny
     "*--generate-default-config*": deny
     "* -o *": deny
@@ -69,6 +68,31 @@ permissions:
     "git *\"-c\"*": deny
     "git *'-c'*": deny
     "git *\\*": deny
+    "semgrep *--autofix*": deny
+    "semgrep *-a*": deny
+    "*--json-output*": deny
+    "*--sarif-output*": deny
+    "*--text-output*": deny
+    "*--emacs-output*": deny
+    "*--vim-output*": deny
+    "*--gitlab-sast-output*": deny
+    "semgrep install-semgrep-pro*": deny
+    "semgrep publish*": deny
+    "semgrep ci*": deny
+    "semgrep login*": deny
+    "semgrep *--remote*": deny
+    "trivy repo*": deny
+    "trivy aws*": deny
+    "trivy server*": deny
+    "trivy clean*": deny
+    "trufflehog git http*": deny
+    "trufflehog git https*": deny
+    "pip-audit *--out*": deny
+    "*--registry*": deny
+    "*--index-url*": deny
+    "*--extra-index-url*": deny
+    "*--db-repository*": deny
+    "govulncheck *-db*": deny
     "*;*": deny
     "*&&*": deny
     "*&*": deny
@@ -76,6 +100,7 @@ permissions:
     "*|*": deny
     "*`*": deny
     "*$(*": deny
+    "*$'*": deny
     "*>*": deny
     "*<*": deny
     "*\n*": deny

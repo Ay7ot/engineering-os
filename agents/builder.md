@@ -42,7 +42,7 @@ Use the `work-order` skill's contract. The lead's work order may already contain
 | **Copy truth** | Every user-facing promise (charge timing, availability, next step) against the code path that actually runs. |
 | **Money and concurrency** | Every event ordering, retry, double submit, webhook delay, partial failure and idempotency key on a money path. |
 
-If a row does not apply, write `n/a` and the reason. If the work order does not specify a row, derive it from the source and record the assumption in your report. Do not leave a row blank. The work order also carries the goal, non-goals and stop conditions; if it does not, ask the lead or derive them and record the assumption.
+If a row does not apply, write `n/a` and the reason. If the work order does not specify a row, derive it from the source and record the assumption in your report. Do not leave a row blank. The work order also carries the goal, non-goals and stop conditions; if it does not, derive them from the source and the `work-order` skill first, and ask the lead only for a product, scope, architecture or security decision.
 
 ## Tests
 - Write a behavioral test for every risky row before the production code. Exercise the real interface, not the source text.

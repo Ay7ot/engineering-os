@@ -59,9 +59,8 @@ difference was whether the reviewer ran the code-review passes at all.
    and thread resolution for non-admin contributors.
 6. Expand read-only verification access for the reviewer, tester and security
    agents: common package scripts, local test and build binaries, read-only
-   `git -C` inspection, package audits, and official documentation for the
-   security agent. The reviewer receives external documentation from the lead's
-   packet. Keep the source-edit, install, publish, deploy, merge and
+   `git -C` inspection, package audits, and no web access for the reviewer or
+   security agent. External documentation comes from the lead's packet. Keep the source-edit, install, publish, deploy, merge and
    write-command boundary. The reviewer does not get `gh api` or web access.
 7. Close the loop in the lead prompt: end every turn on the next action or a
    concrete decision through the `question` tool, not on a bare status report.
@@ -97,7 +96,8 @@ They are fixed or recorded here:
   SSRF and exfiltration path. External documentation comes from the lead's
   packet.
 - The `git -C` allow rules got blanket `*--output*`, `*--ext-diff*`, `git -C * -c *`
-  and `git -c *` denies, so the OpenCode map matches the Claude guard.
+  and `git -c *` denies, so the OpenCode map matches the Claude guard for the
+  literal forms. Quote-split forms remain a stopgap.
 - The security agent got the reviewer's control-operator deny block, plus
   `*--output*`, `*--ext-diff*`, `*--report-path*`, `npm audit fix`,
   `semgrep --config=https/http`, `semgrep -o`, `trivy -o`, `gitleaks -o`,
@@ -109,9 +109,14 @@ They are fixed or recorded here:
   `../*`, `--junitxml`, `go test -toolexec` and `cargo test --manifest-path`
   denies.
 - Quoted and escaped flag forms are a stopgap: targeted `git *--out*"*`,
-  `git *--ext-*"*`, `git *"-c"*` and `git *\*` denies, and the Claude guard now
-  rejects ANSI-C `$'` quoting. A parser-based guard is the durable fix and a
-  follow-up.
+  `git *--ext-*"*`, `git *"-c"*`, `git *\*` and `*$'*` denies. The Claude
+  guard also rejects ANSI-C `$'` quoting. A parser-based guard is the durable
+  fix and task 738.
+- Semgrep `--autofix`, the `--*-output` URL family, `install-semgrep-pro`,
+  `publish`, `ci`, `login`, `--remote`, Trivy `repo`/`aws`/`server`/`clean`,
+  TruffleHog git URLs, the Go single-dash profile flags, `pip-audit --out`, and
+  the scanner URL overrides (`--registry`, `--index-url`, `--db-repository`,
+  `govulncheck -db`) are denied.
 - The merge gate's thread step now uses GraphQL `reviewThreads` with
   `isResolved`, `id` and `pageInfo`, because the REST comments endpoint has no
   resolution field.
@@ -123,7 +128,8 @@ They are fixed or recorded here:
 - Work orders and reviews take longer to write. The cost moves from the post-PR
   fix loop to the pre-PR contract, where it is cheaper.
 - The reviewer and tester can verify more, so fewer reviews are static-only. The
-  allowlist still excludes install, publish, deploy, merge and write commands.
+  map denies the configured scanner install/publish subcommands; scanner network
+  fetch and code execution through test scripts remain residual.
 - The engine gains a `work-order` skill and a `/merge` command, and the
   `code-review` and `testing` skills gain the semantic passes.
 - The model tiers and the default model do not change. Cost is roughly flat.
@@ -152,8 +158,10 @@ They are fixed or recorded here:
   or a real browser. The semantic contract reduces the class, it does not
   eliminate it.
 - The shell allowlist is a guardrail, not a sandbox. OpenCode matches raw
-  strings, so the quoted and escaped flag denies are a stopgap. A parser-based
-  guard, shared with the Claude hook, is the durable fix and a follow-up.
+  strings, so the quoted and escaped flag denies are a stopgap. One-character
+  quote shifts still bypass them. A parser-based guard, shared with the Claude
+  hook, is the durable fix and task 738. The operator must accept this residual
+  explicitly before the reviewer handles external PRs.
 - The expanded allowlist still executes project test and build code with the
   reviewer's permissions. The local binary and `node scripts/check-*` prefixes
   bound the command name, not the code. The external-PR fallback remains a

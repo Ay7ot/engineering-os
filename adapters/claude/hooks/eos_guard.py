@@ -15,7 +15,7 @@ Semantics mirror OpenCode wildcards:
   - With any --allow, the default is deny.
   - "git log *" also matches the bare "git log".
   - Under an allowlist, commands containing shell control operators
-    (; & | ` $( > < newline) are blocked, so "git log && rm -rf x" cannot ride
+    (; & | ` $( $' > < newline) are blocked, so "git log && rm -rf x" cannot ride
     along, and git is held read-only: mutating subcommands, write flags
     (--output) and config injection (-c) are blocked even when a wildcard such
     as "git *" or "git branch *" would match.

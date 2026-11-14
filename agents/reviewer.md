@@ -120,6 +120,7 @@ permissions:
     "*|*": deny
     "*`*": deny
     "*$(*": deny
+    "*$'*": deny
     "*>*": deny
     "*<*": deny
     "*\n*": deny
@@ -152,13 +153,17 @@ permissions:
     "go test *-toolexec*": deny
     "cargo test *--manifest-path*": deny
     "*--fix*": deny
-    "* -o*": deny
     "*trivy plugin *": deny
     "*--generate-default-config*": deny
     "* -o *": deny
     "* -o/*": deny
     "* -o=*": deny
     "*--coverprofile*": deny
+    "*-coverprofile*": deny
+    "*-cpuprofile*": deny
+    "*-memprofile*": deny
+    "*-trace*": deny
+    "*-outputdir*": deny
     "*--junit-xml*": deny
     "*--config-env*": deny
     "*--exec-path*": deny
@@ -226,7 +231,7 @@ If a piece is missing, say so in the review. If a verification command is outsid
 ## Verification
 - You may run the commands in your permission block. They are for evidence only.
 - The allowlist constrains the command string, not the code it runs. Test and build code executes with your permissions. For an external or untrusted change, do not execute it: ask the lead to have the tester run it in a disposable worktree or CI and pass the raw output.
-- Run one command at a time. Chained commands, redirection, pipes, command substitution, a single `&`, newlines, zsh process substitution `=(`, and the git parser flags `--textconv`/`--show-signature` are blocked.
+- Run one command at a time. Chained commands, redirection, pipes, command substitution, a single `&`, newlines, zsh process substitution `=(`, output paths, external-diff and config-injection flags, and the local binary write flags are blocked. If a command is blocked, use the documented alternative or ask the lead.
 - The allowlist is designed to prevent direct install, publish, deploy, merge, data mutation, and source edits. It is not a sandbox. Treat project code accordingly.
 - Build artifacts and caches are acceptable; source edits are not.
 - Report each command you ran and its result in the review, so the verdict is evidence-backed.

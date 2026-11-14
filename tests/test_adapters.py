@@ -231,7 +231,7 @@ REVIEW_VERIFY = [
 ]
 REVIEW_CONTROL_DENY = [
     "go test *-exec*", "go vet *-vettool*", "cargo clippy *--fix*", "cargo test *--config*",
-    "*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*>*", "*<*",
+    "*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*$'*", "*>*", "*<*",
     "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*",
     "git -C * -c *", "git -c *", "*--output*", "*--ext-diff*",
     "*eslint *--fix*", "*eslint *--output-file*",
@@ -241,8 +241,8 @@ REVIEW_CONTROL_DENY = [
     "*tsc *--outFile*", "*tsc *--outDir*",
     "python3 -m pytest /*", "python3 -m pytest ../*", "*--junitxml*",
     "go test *-toolexec*", "cargo test *--manifest-path*",
-    "*--fix*", "* -o*", "*trivy plugin *", "*--generate-default-config*",
-    "* -o *", "* -o/*", "* -o=*", "*--coverprofile*", "*--junit-xml*",
+    "*--fix*", "*trivy plugin *", "*--generate-default-config*",
+    "* -o *", "* -o/*", "* -o=*", "*--coverprofile*", "*-coverprofile*", "*-cpuprofile*", "*-memprofile*", "*-trace*", "*-outputdir*", "*--junit-xml*",
     "*--config-env*", "*--exec-path*",
     'git *--out*"*', "git *--out*'*", 'git *--ext-*"*', "git *--ext-*'*",
     'git *"-c"*', "git *'-c'*", r"git *\*",
@@ -253,13 +253,21 @@ SECURITY_EXTRA_DENY = [
     "semgrep *--config=https*", "semgrep *--config=http*", "semgrep *-o *",
     "semgrep *--config *http*", "semgrep *-f *http*",
     "trivy *-o *", "gitleaks *-o *",
-    "*--fix*", "* -o*", "*trivy plugin *", "*--generate-default-config*",
+    "*--fix*", "*trivy plugin *", "*--generate-default-config*",
     "* -o *", "* -o/*", "* -o=*", "*--coverprofile*", "*--junit-xml*",
     "*--config-env*", "*--exec-path*",
     'git *--out*"*', "git *--out*'*", 'git *--ext-*"*', "git *--ext-*'*",
     'git *"-c"*', "git *'-c'*", r"git *\*",
+    "semgrep *--autofix*", "semgrep *-a*",
+    "*--json-output*", "*--sarif-output*", "*--text-output*", "*--emacs-output*",
+    "*--vim-output*", "*--gitlab-sast-output*",
+    "semgrep install-semgrep-pro*", "semgrep publish*", "semgrep ci*", "semgrep login*",
+    "semgrep *--remote*", "trivy repo*", "trivy aws*", "trivy server*", "trivy clean*",
+    "trufflehog git http*", "trufflehog git https*",
+    "pip-audit *--out*", "*--registry*", "*--index-url*", "*--extra-index-url*",
+    "*--db-repository*", "govulncheck *-db*",
 ]
-SECURITY_CONTROL_DENY = ["*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*>*", "*<*",
+SECURITY_CONTROL_DENY = ["*;*", "*&&*", "*&*", "*||*", "*|*", "*`*", "*$(*", "*$'*", "*>*", "*<*",
                          "*\n*", "*\r*", "*=(*", "*--textconv*", "*--show-signature*"]
 
 
@@ -445,6 +453,13 @@ check("lead work order carries cardinality, copy truth and optional fields",
 check("builder contract carries optional fields", "Optional fields" in by_name["builder"].body)
 check("work-order skill carries optional fields",
       "Optional fields" in next(s for s in src.skills if s.name == "work-order").body)
+check("work-order template carries the optional-field row",
+      "Optional fields:" in next(s for s in src.skills if s.name == "work-order").body)
+check("feature command carries the optional-field row",
+      "optional fields" in next(c for c in src.commands if c.name == "feature").body)
+check("merge command queries thread resolution",
+      all(x in next(c for c in src.commands if c.name == "merge").body
+          for x in ["isResolved", "pageInfo", "id "]))
 check("testing skill carries data provenance and copy truth",
       all(x in next(s for s in src.skills if s.name == "testing").body
           for x in ["data provenance", "copy truth"]))
@@ -628,6 +643,11 @@ REVIEW_DENY = [
     "python3 -m pytest /tmp/evil.py",
     "python3 -m pytest ../evil.py",
     "go test -toolexec='sh -c id' ./...",
+    "go test -o /tmp/x ./...",
+    "go test -coverprofile=/tmp/x ./...",
+    "python3 -m pytest --junit-xml=/tmp/x tests",
+    "./node_modules/.bin/vitest -u",
+    r"go test $'\x2d\x2dexec' 'sh -c id' ./...",
     "cargo test --manifest-path /tmp/evil/Cargo.toml",
     "gh api repos/o/r/pulls/1/merge --method=PUT",
     "gh api repos/o/r/pulls/1/reviews -f event=APPROVE",
@@ -650,7 +670,12 @@ SECURITY_DENY = ["semgrep --config=auto . ; git push", "gitleaks detect ; curl h
                  "pip-audit -o src/app.py",
                  "trivy plugin install",
                  "trivy fs -o/tmp/x .",
-                 "gitleaks detect -o /tmp/x"]
+                 "gitleaks detect -o /tmp/x",
+                 "pip-audit --out src/app.py",
+                 "npm audit --registry https://evil.example",
+                 "pip-audit --index-url https://evil.example",
+                 "trivy fs --db-repository https://evil.example .",
+                 "govulncheck -db https://evil.example ./..."]
 leaked = [f"security: {c}" for c in SECURITY_DENY if oc_bash(by_name["security"], c) == "allow"]
 check("security cannot chain or write through the expanded scanner access", not leaked, leaked)
 check("typed golden would catch quoting drift",

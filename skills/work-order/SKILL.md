@@ -38,6 +38,7 @@ Goal:
 Non-goals:
 Surfaces:
 States:
+Optional fields:
 Data:
 Cardinality:
 Time:
@@ -62,7 +63,7 @@ The builder infers implementation details from the repo, docs and tests. It retu
 ## Checklist
 - [ ] Goal, non-goals and user-visible outcome
 - [ ] Surfaces and every entry point
-- [ ] State matrix, data map, cardinality, time and copy truth
+- [ ] State matrix, optional-field matrix, data map, cardinality, time and copy truth
 - [ ] Money and concurrency rows, or `n/a`
 - [ ] Behavioral acceptance test per risky row
 - [ ] Verification commands and definition of done
